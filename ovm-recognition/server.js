@@ -21,6 +21,7 @@ app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/recognition-rules', require('./routes/rules'));
 app.use('/api/transactions', require('./routes/transactions'));
 app.use('/webhook', require('./routes/webhook'));
+app.use('/setup', require('./routes/setup'));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
