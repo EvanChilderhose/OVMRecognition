@@ -22,4 +22,89 @@
 
 <div id="app" class="app hidden">
   <header>
+    <h1><img src="logo.png" alt="OVM" class="logo"> OVM Employee Recognition</h1>
+    <nav>
+      <button class="tab-btn active" data-tab="employees">Employees</button>
+      <button class="tab-btn" data-tab="pending">Pending Approvals</button>
+      <button class="tab-btn" data-tab="rewards">Rewards</button>
+      <button class="tab-btn" data-tab="rules">Recognition Rules</button>
+      <button class="tab-btn" data-tab="log">Transaction Log</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- EMPLOYEES -->
+    <section id="tab-employees" class="tab-panel">
+      <div class="panel-header">
+        <h2>Employees</h2>
+        <button onclick="openEmployeeForm()">+ Add Employee</button>
+      </div>
+      <table id="employees-table">
+        <thead><tr><th>Name</th><th>Department</th><th>Phone</th><th>Start Date</th><th>Birthday</th><th>Status</th><th>Points</th><th>Lifetime</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- PENDING APPROVALS -->
+    <section id="tab-pending" class="tab-panel hidden">
+      <div class="panel-header">
+        <h2>Pending Approvals</h2>
+        <button onclick="openAwardForm()">+ Nominate an Award</button>
+      </div>
+      <table id="pending-table">
+        <thead><tr><th>Employee</th><th>Type</th><th>Reason</th><th>Points</th><th>Notes</th><th>Requested</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- REWARDS -->
+    <section id="tab-rewards" class="tab-panel hidden">
+      <div class="panel-header">
+        <h2>Rewards Catalog</h2>
+        <button onclick="openRewardForm()">+ Add Reward</button>
+      </div>
+      <table id="rewards-table">
+        <thead><tr><th>Reward</th><th>Point Cost</th><th>$ Value</th><th>Description</th><th>Active</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- RECOGNITION RULES -->
+    <section id="tab-rules" class="tab-panel hidden">
+      <div class="panel-header">
+        <h2>Recognition Rules</h2>
+        <button onclick="openRuleForm()">+ Add Rule</button>
+      </div>
+      <table id="rules-table">
+        <thead><tr><th>Event</th><th>Points</th><th>$ Value</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- LOG -->
+    <section id="tab-log" class="tab-panel hidden">
+      <h2>Transaction Log</h2>
+      <table id="log-table">
+        <thead><tr><th>Date</th><th>Employee</th><th>Type</th><th>Reason</th><th>Points</th><th>Status</th><th>By</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+</div>
+
+<!-- Generic modal used by all the "+" forms -->
+<div id="modal-backdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeModal()">Cancel</button>
+      <button id="modal-save"></button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
 
