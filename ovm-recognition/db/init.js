@@ -49,12 +49,19 @@ const REWARDS = [
   ['Long Weekend', 1500, 300, null, null]
 ];
 
-async function main() {
-  console.log('Creating tables...');
+// Does the actual work. Callable from the CLI (`npm run init-db`) or from
+// the /setup/init-db HTTP route (used when Shell access isn't available,
+// e.g. on Render's free tier). Does NOT close the pool — the caller decides
+// whether the process is exiting (CLI) or the server keeps running (HTTP route).
+async function seed() {
+  const log = [];
+  const say = (msg) => { console.log(msg); log.push(msg); };
+
+  say('Creating tables...');
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(schema);
 
-  console.log('Seeding recognition rules...');
+  say('Seeding recognition rules...');
   for (const [event, points, dollar] of RECOGNITION_RULES) {
     await pool.query(
       `INSERT INTO recognition_rules (event, points, dollar_value)
@@ -64,7 +71,7 @@ async function main() {
     );
   }
 
-  console.log('Seeding rewards...');
+  say('Seeding rewards...');
   for (const [reward, cost, dollar, desc, fulfillment] of REWARDS) {
     const existing = await pool.query('SELECT id FROM rewards WHERE reward = $1', [reward]);
     if (existing.rows.length === 0) {
@@ -76,11 +83,18 @@ async function main() {
     }
   }
 
-  console.log('Done. Tables created and seeded.');
-  await pool.end();
+  say('Done. Tables created and seeded.');
+  return log;
 }
 
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run automatically when invoked directly via `node db/init.js` / `npm run init-db`
+if (require.main === module) {
+  seed()
+    .then(() => pool.end())
+    .catch(err => {
+      console.error(err);
+      process.exit(1);
+    });
+}
+
+module.exports = { seed };
