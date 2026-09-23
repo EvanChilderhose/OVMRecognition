@@ -33,7 +33,7 @@ async function submitPasscode() {
     document.getElementById('app').classList.remove('hidden');
     initApp();
   } catch (e) {
-    // showPasscodeScreen already ran via the 401 handler
+    if (e.message !== 'unauthorized') showPasscodeScreen(e.message);
   }
 }
 
@@ -61,6 +61,7 @@ function loadTab(tab) {
 function initApp() {
   setupTabs();
   loadEmployees();
+  refreshPendingCount();
 }
 
 // ---------- Employees ----------
@@ -69,31 +70,34 @@ async function loadEmployees() {
   const tbody = document.querySelector('#employees-table tbody');
   tbody.innerHTML = employeesCache.map(e => `
     <tr>
-      <td>${e.name}</td>
-      <td>${e.department || ''}</td>
-      <td>${e.phone || ''}</td>
-      <td>${fmtDate(e.start_date)}</td>
-      <td>${fmtDate(e.birthday)}</td>
-      <td>${e.status}</td>
-      <td>${e.current_points}</td>
-      <td>${e.lifetime_points}</td>
-      <td><button class="small" onclick="openEmployeeForm(${e.id})">Edit</button></td>
-    </tr>`).join('');
+      <td><strong>${esc(e.name)}</strong>${e.phone ? `<span class="sub-line">${esc(e.phone)}</span>` : ''}</td>
+      <td>${esc(e.department)}</td>
+      <td class="nowrap">${fmtDate(e.start_date)}</td>
+      <td class="nowrap">${fmtDate(e.birthday)}</td>
+      <td>${statusTag(e.status)}</td>
+      <td class="num strong">${fmtNum(e.current_points)}</td>
+      <td class="num dim">${fmtNum(e.lifetime_points)}</td>
+      <td class="actions"><button class="link" onclick="openEmployeeForm(${e.id})">Edit</button></td>
+    </tr>`).join('') || emptyRow(8, 'No employees yet. Add your staff to start tracking points.');
 }
 
 function openEmployeeForm(id) {
   const emp = id ? employeesCache.find(e => e.id === id) : {};
   showModal(id ? 'Edit Employee' : 'Add Employee', `
-    <label>Name</label><input id="f-name" value="${emp.name || ''}">
-    <label>Phone (e.g. +16135551234)</label><input id="f-phone" value="${emp.phone || ''}">
-    <label>Department</label><input id="f-department" value="${emp.department || ''}">
-    <label>Start Date</label><input id="f-start" type="date" value="${dateInputVal(emp.start_date)}">
-    <label>Birthday</label><input id="f-birthday" type="date" value="${dateInputVal(emp.birthday)}">
-    <label>Status</label>
+    ${field('f-name', 'Name', `<input id="f-name" value="${esc(emp.name)}">`)}
+    <div class="field-row">
+      ${field('f-phone', 'Phone', `<input id="f-phone" type="tel" placeholder="613-555-1234" value="${esc(emp.phone)}">`)}
+      ${field('f-department', 'Department', `<input id="f-department" value="${esc(emp.department)}">`)}
+    </div>
+    <div class="field-row">
+      ${field('f-start', 'Start Date', `<input id="f-start" type="date" value="${dateInputVal(emp.start_date)}">`)}
+      ${field('f-birthday', 'Birthday', `<input id="f-birthday" type="date" value="${dateInputVal(emp.birthday)}">`)}
+    </div>
+    ${field('f-status', 'Status', `
     <select id="f-status">
       <option ${emp.status !== 'Inactive' ? 'selected' : ''}>Active</option>
       <option ${emp.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
-    </select>
+    </select>`)}
   `, async () => {
     const payload = {
       name: val('f-name'), phone: val('f-phone'), department: val('f-department'),
@@ -110,41 +114,61 @@ function openEmployeeForm(id) {
 async function loadPending() {
   const rows = await api('/api/transactions?status=pending');
   const tbody = document.querySelector('#pending-table tbody');
+  setPendingCount(rows.length);
   tbody.innerHTML = rows.map(t => `
     <tr>
-      <td>${t.employee_name}</td>
-      <td>${t.type}</td>
-      <td>${t.reason}</td>
-      <td>${t.points}</td>
-      <td>${t.notes || ''}</td>
-      <td>${fmtDateTime(t.created_at)}</td>
-      <td>
+      <td class="strong nowrap">${esc(t.employee_name)}</td>
+      <td class="request">${requestCell(t, true)}</td>
+      <td class="num strong">${fmtPoints(t.points)}</td>
+      <td>${esc(t.nominated_by) || '<span class="dim">—</span>'}</td>
+      <td class="nowrap dim">${fmtDateTime(t.created_at)}</td>
+      <td class="actions">
         <button class="small" onclick="approveTx(${t.id})">Approve</button>
         <button class="small deny" onclick="denyTx(${t.id})">Deny</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="7">Nothing pending.</td></tr>';
+    </tr>`).join('') || emptyRow(6, 'Nothing pending. You’re all caught up.');
+}
+
+async function refreshPendingCount() {
+  try { setPendingCount((await api('/api/transactions?status=pending')).length); } catch (e) {}
+}
+function setPendingCount(n) {
+  const el = document.getElementById('pending-count');
+  el.textContent = n;
+  el.classList.toggle('hidden', !n);
 }
 
 async function approveTx(id) {
-  const approved_by = prompt('Your name (for the record):') || '';
-  await api(`/api/transactions/${id}/approve`, { method: 'POST', body: JSON.stringify({ approved_by }) });
+  const approved_by = prompt('Your name (for the record):');
+  if (approved_by === null) return; // Cancel
+  try {
+    await api(`/api/transactions/${id}/approve`, { method: 'POST', body: JSON.stringify({ approved_by }) });
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+  }
   loadPending();
 }
 async function denyTx(id) {
-  const approved_by = prompt('Your name (for the record):') || '';
+  const approved_by = prompt('Your name (for the record):');
+  if (approved_by === null) return; // Cancel
   const reason = prompt('Reason for denying (optional):') || '';
-  await api(`/api/transactions/${id}/deny`, { method: 'POST', body: JSON.stringify({ approved_by, reason }) });
+  try {
+    await api(`/api/transactions/${id}/deny`, { method: 'POST', body: JSON.stringify({ approved_by, reason }) });
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+  }
   loadPending();
 }
 
 function openAwardForm() {
   showModal('Nominate an Award', `
-    <label>Employee</label>
-    <select id="f-employee">${employeesCache.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}</select>
-    <label>Reason (e.g. "Safety Champ", "Above + Beyond")</label><input id="f-reason">
-    <label>Points</label><input id="f-points" type="number" value="50">
-    <label>Notes</label><textarea id="f-notes"></textarea>
-    <label>Your Name</label><input id="f-nominated">
+    ${field('f-employee', 'Employee', `<select id="f-employee">${employeesCache.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select>`)}
+    <div class="field-row">
+      ${field('f-reason', 'Reason', `<input id="f-reason" placeholder="Safety Champ, Above + Beyond…">`)}
+      ${field('f-points', 'Points', `<input id="f-points" type="number" value="50">`)}
+    </div>
+    ${field('f-notes', 'Notes', `<textarea id="f-notes"></textarea>`)}
+    ${field('f-nominated', 'Your Name', `<input id="f-nominated">`)}
   `, async () => {
     await api('/api/transactions/award', { method: 'POST', body: JSON.stringify({
       employee_id: Number(val('f-employee')), reason: val('f-reason'),
@@ -161,22 +185,26 @@ async function loadRewards() {
   const tbody = document.querySelector('#rewards-table tbody');
   tbody.innerHTML = rewardsCache.map(r => `
     <tr>
-      <td>${r.reward}</td><td>${r.point_cost}</td><td>${r.dollar_value ?? ''}</td>
-      <td>${r.description || ''}</td><td>${r.active ? 'Yes' : 'No'}</td>
-      <td><button class="small" onclick="openRewardForm(${r.id})">Edit</button></td>
-    </tr>`).join('');
+      <td class="strong">${esc(r.reward)}</td>
+      <td class="num strong">${fmtNum(r.point_cost)}</td>
+      <td class="num">${fmtMoney(r.dollar_value)}</td>
+      <td class="dim">${esc(r.description)}</td>
+      <td>${r.active ? '<span class="tag ok">Active</span>' : '<span class="tag off">Inactive</span>'}</td>
+      <td class="actions"><button class="link" onclick="openRewardForm(${r.id})">Edit</button></td>
+    </tr>`).join('') || emptyRow(6, 'No rewards yet. Add one so employees have something to redeem.');
 }
 
 function openRewardForm(id) {
   const r = id ? rewardsCache.find(x => x.id === id) : {};
   showModal(id ? 'Edit Reward' : 'Add Reward', `
-    <label>Reward Name</label><input id="f-reward" value="${r.reward || ''}">
-    <label>Point Cost</label><input id="f-cost" type="number" value="${r.point_cost || ''}">
-    <label>Dollar Value</label><input id="f-dollar" type="number" value="${r.dollar_value || ''}">
-    <label>Description</label><textarea id="f-desc">${r.description || ''}</textarea>
-    <label>Fulfillment Instructions</label><textarea id="f-fulfill">${r.fulfillment_instructions || ''}</textarea>
-    <label>Active</label>
-    <select id="f-active"><option value="true" ${r.active !== false ? 'selected' : ''}>Yes</option><option value="false" ${r.active === false ? 'selected' : ''}>No</option></select>
+    ${field('f-reward', 'Reward Name', `<input id="f-reward" value="${esc(r.reward)}">`)}
+    <div class="field-row">
+      ${field('f-cost', 'Point Cost', `<input id="f-cost" type="number" value="${esc(r.point_cost)}">`)}
+      ${field('f-dollar', 'Dollar Value', `<input id="f-dollar" type="number" value="${esc(r.dollar_value)}">`)}
+    </div>
+    ${field('f-desc', 'Description', `<textarea id="f-desc">${esc(r.description)}</textarea>`)}
+    ${field('f-fulfill', 'Fulfillment Instructions', `<textarea id="f-fulfill">${esc(r.fulfillment_instructions)}</textarea>`)}
+    ${field('f-active', 'Active', `<select id="f-active"><option value="true" ${r.active !== false ? 'selected' : ''}>Yes</option><option value="false" ${r.active === false ? 'selected' : ''}>No</option></select>`)}
   `, async () => {
     const payload = {
       reward: val('f-reward'), point_cost: Number(val('f-cost')), dollar_value: Number(val('f-dollar')) || null,
@@ -196,17 +224,21 @@ async function loadRules() {
   const tbody = document.querySelector('#rules-table tbody');
   tbody.innerHTML = rulesCache.map(r => `
     <tr>
-      <td>${r.event}</td><td>${r.points}</td><td>${r.dollar_value ?? ''}</td>
-      <td><button class="small" onclick="openRuleForm(${r.id})">Edit</button></td>
-    </tr>`).join('');
+      <td class="strong">${esc(r.event)}</td>
+      <td class="num strong">${fmtNum(r.points)}</td>
+      <td class="num">${fmtMoney(r.dollar_value)}</td>
+      <td class="actions"><button class="link" onclick="openRuleForm(${r.id})">Edit</button></td>
+    </tr>`).join('') || emptyRow(4, 'No rules yet. Add one for each anniversary or milestone you reward.');
 }
 
 function openRuleForm(id) {
   const r = id ? rulesCache.find(x => x.id === id) : {};
   showModal(id ? 'Edit Rule' : 'Add Rule', `
-    <label>Event Name</label><input id="f-event" value="${r.event || ''}">
-    <label>Points</label><input id="f-rpoints" type="number" value="${r.points || ''}">
-    <label>Dollar Value</label><input id="f-rdollar" type="number" value="${r.dollar_value || ''}">
+    ${field('f-event', 'Event Name', `<input id="f-event" value="${esc(r.event)}">`)}
+    <div class="field-row">
+      ${field('f-rpoints', 'Points', `<input id="f-rpoints" type="number" value="${esc(r.points)}">`)}
+      ${field('f-rdollar', 'Dollar Value', `<input id="f-rdollar" type="number" value="${esc(r.dollar_value)}">`)}
+    </div>
   `, async () => {
     const payload = { event: val('f-event'), points: Number(val('f-rpoints')), dollar_value: Number(val('f-rdollar')) || null };
     if (id) await api(`/api/recognition-rules/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
@@ -222,9 +254,38 @@ async function loadLog() {
   const tbody = document.querySelector('#log-table tbody');
   tbody.innerHTML = rows.map(t => `
     <tr>
-      <td>${fmtDateTime(t.created_at)}</td><td>${t.employee_name}</td><td>${t.type}</td>
-      <td>${t.reason}</td><td>${t.points}</td><td>${t.status}</td><td>${t.approved_by || ''}</td>
-    </tr>`).join('');
+      <td class="nowrap dim">${fmtDateTime(t.created_at)}</td>
+      <td class="strong nowrap">${esc(t.employee_name)}</td>
+      <td class="request">${requestCell(t, false)}</td>
+      <td class="num strong">${fmtPoints(t.points)}</td>
+      <td>${statusTag(t.status)}</td>
+      <td>${esc(t.nominated_by)}</td>
+      <td>${esc(t.approved_by)}</td>
+    </tr>`).join('') || emptyRow(7, 'No transactions yet.');
+}
+
+// ---------- Table cell helpers ----------
+const STATUS_TONE = { active: 'ok', approved: 'ok', pending: 'warn', inactive: 'off', denied: 'off' };
+function statusTag(s) {
+  if (!s) return '';
+  return `<span class="tag ${STATUS_TONE[String(s).toLowerCase()] || 'off'}">${esc(s)}</span>`;
+}
+function requestCell(t, withNotes) {
+  const notes = withNotes && t.notes ? `<span class="sub-line">${esc(t.notes)}</span>` : '';
+  return `<span class="type ${esc(t.type)}">${esc(t.type)}</span>${esc(t.reason)}${notes}`;
+}
+function emptyRow(cols, msg) { return `<tr><td colspan="${cols}" class="empty">${msg}</td></tr>`; }
+function fmtNum(n) { return n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString(); }
+function fmtPoints(n) {
+  if (n === null || n === undefined) return '';
+  n = Number(n);
+  return n < 0 ? `<span class="neg">−${Math.abs(n).toLocaleString()}</span>` : `+${n.toLocaleString()}`;
+}
+function fmtMoney(v) {
+  return v === null || v === undefined || v === '' ? '' : '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function field(id, label, control) {
+  return `<div class="field"><label for="${id}">${label}</label>${control}</div>`;
 }
 
 // ---------- Modal helpers ----------
@@ -234,15 +295,37 @@ function showModal(title, bodyHtml, onSave) {
   const saveBtn = document.getElementById('modal-save');
   saveBtn.textContent = 'Save';
   saveBtn.onclick = async () => {
-    try { await onSave(); } catch (e) { alert(e.message); }
+    try { await onSave(); } catch (e) { if (e.message !== 'unauthorized') alert(e.message); }
   };
   document.getElementById('modal-backdrop').classList.remove('hidden');
+  const first = document.querySelector('#modal-body input, #modal-body select, #modal-body textarea');
+  if (first) first.focus();
 }
 function closeModal() { document.getElementById('modal-backdrop').classList.add('hidden'); }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('modal-backdrop').classList.contains('hidden')) closeModal();
+});
 function val(id) { return document.getElementById(id).value; }
-function fmtDate(d) { return d ? new Date(d).toLocaleDateString() : ''; }
-function fmtDateTime(d) { return d ? new Date(d).toLocaleString() : ''; }
-function dateInputVal(d) { return d ? new Date(d).toISOString().slice(0, 10) : ''; }
+
+// Escapes text before it's inserted into the page, so a name or note
+// containing < > " & shows up as text instead of being run as HTML.
+function esc(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Birthdays and start dates arrive as plain 'YYYY-MM-DD'. Build the Date from
+// its parts (local time) — new Date('YYYY-MM-DD') means midnight UTC, which
+// shows as the previous day in Ottawa.
+function fmtDate(d) {
+  if (!d) return '';
+  const [y, m, day] = String(d).slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString();
+}
+function fmtDateTime(d) {
+  return d ? new Date(d).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+}
+function dateInputVal(d) { return d ? String(d).slice(0, 10) : ''; }
 
 // ---------- Boot ----------
 if (PASSCODE) {

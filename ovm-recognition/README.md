@@ -43,6 +43,9 @@ sections in order.
    - `GHL_API_KEY` — from GoHighLevel, step 3 below
    - `GHL_LOCATION_ID` — from GoHighLevel, step 3 below
    - `DASHBOARD_PASSCODE` — make up a password for you/your managers
+   - `WEBHOOK_SECRET` — make up a long random string (30+ characters);
+     you'll paste the same value into GHL in step 3
+   - `TIMEZONE` — optional, defaults to `America/Toronto` (Ottawa time)
 6. Click **Create Web Service**. Render will give you a URL like
    `https://ovm-recognition.onrender.com` — that's your dashboard address.
 
@@ -51,15 +54,11 @@ sections in order.
    an inbound text). If that delay is a problem, Render's cheapest paid
    tier (~$7/month) keeps it always-on.
 
-7. **One-time database setup**: In Render, open your service, go to the
-   **Shell** tab, and run:
-   ```
-   npm run init-db
-   ```
-   This creates all the tables and pre-loads your Rewards and Recognition
-   Rules from your spreadsheet. You'll still need to add your employees —
-   either one by one in the dashboard, or ask me to help you write a quick
-   one-time import script from your spreadsheet.
+7. **Database setup happens automatically.** Every time the app starts it
+   creates or updates the tables it needs. On the very first start it also
+   pre-loads your Rewards and Recognition Rules from your spreadsheet (it
+   only does this while those lists are empty, so it never overwrites your
+   edits). You'll still need to add your employees in the dashboard.
 
 ## 3. Set up GoHighLevel
 
@@ -84,12 +83,16 @@ sections in order.
 5. Method: POST. Body (use GHL's merge-field picker for the `{{ }}` parts):
    ```json
    {
+     "secret": "PASTE YOUR WEBHOOK_SECRET HERE",
      "phone": "{{contact.phone}}",
      "name": "{{contact.name}}",
      "contactId": "{{contact.id}}",
      "message": "{{message.body}}"
    }
    ```
+   The `secret` must exactly match `WEBHOOK_SECRET` on Render. Without it,
+   anyone who found the webhook URL could send fake texts, e.g. to redeem
+   someone else's points.
 6. Save and publish the workflow.
 
 ## 4. Using the dashboard
@@ -113,13 +116,17 @@ Open your Render URL, enter the passcode you set, and you'll see:
 **Approve** — nothing is automatic, including birthdays/anniversaries
 (the app flags them daily, but a person still signs off).
 
+If an anniversary has no matching rule (e.g. there's no "11 Year
+Anniversary" rule), it still shows up in Pending Approvals, with 0 points
+and a note. Add the rule under **Recognition Rules** and then approve it —
+it picks up the rule's points. Or deny it and nominate an award by hand.
+
 ## 5. Local testing (optional, before deploying)
 
 ```
 npm install
 cp .env.example .env   # fill in DATABASE_URL at minimum
-npm run init-db
-npm start
+npm start              # sets up the database automatically
 ```
 Then open http://localhost:3000
 

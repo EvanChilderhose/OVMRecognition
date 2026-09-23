@@ -10,91 +10,122 @@
 <body>
 
 <div id="passcode-screen" class="passcode-screen">
-  <div class="passcode-box">
-    <img src="logo.png" alt="OVM" class="passcode-logo">
+  <form class="passcode-box" onsubmit="event.preventDefault(); submitPasscode();">
+    <div class="passcode-mark"><img src="logo.png" alt="OVM"></div>
     <h1>Ottawa Valley Meats</h1>
-    <p>Employee Recognition Dashboard</p>
-    <input type="password" id="passcode-input" placeholder="Enter passcode">
-    <button onclick="submitPasscode()">Enter</button>
-    <p id="passcode-error" class="error-text"></p>
-  </div>
+    <p class="passcode-sub">Employee Recognition Dashboard</p>
+    <label for="passcode-input" class="visually-hidden">Passcode</label>
+    <input type="password" id="passcode-input" placeholder="Enter passcode" autocomplete="current-password" autofocus>
+    <button type="submit" class="block">Enter</button>
+    <p id="passcode-error" class="error-text" role="alert"></p>
+  </form>
 </div>
 
 <div id="app" class="app hidden">
-  <header>
-    <h1><img src="logo.png" alt="OVM" class="logo"> OVM Employee Recognition</h1>
-    <nav>
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="logo.png" alt="" class="logo">
+      <span class="brand-name">Employee Recognition</span>
+    </div>
+    <nav aria-label="Sections">
       <button class="tab-btn active" data-tab="employees">Employees</button>
-      <button class="tab-btn" data-tab="pending">Pending Approvals</button>
+      <button class="tab-btn" data-tab="pending">Pending Approvals <span id="pending-count" class="count hidden"></span></button>
       <button class="tab-btn" data-tab="rewards">Rewards</button>
       <button class="tab-btn" data-tab="rules">Recognition Rules</button>
       <button class="tab-btn" data-tab="log">Transaction Log</button>
     </nav>
-  </header>
+  </aside>
 
   <main>
     <!-- EMPLOYEES -->
     <section id="tab-employees" class="tab-panel">
       <div class="panel-header">
-        <h2>Employees</h2>
-        <button onclick="openEmployeeForm()">+ Add Employee</button>
+        <div>
+          <h2>Employees</h2>
+          <p class="panel-sub">Staff, their phone numbers for texts, and point balances.</p>
+        </div>
+        <button onclick="openEmployeeForm()">Add Employee</button>
       </div>
-      <table id="employees-table">
-        <thead><tr><th>Name</th><th>Department</th><th>Phone</th><th>Start Date</th><th>Birthday</th><th>Status</th><th>Points</th><th>Lifetime</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-wrap">
+        <table id="employees-table">
+          <thead><tr><th>Name</th><th>Department</th><th>Start Date</th><th>Birthday</th><th>Status</th><th class="num">Points</th><th class="num">Lifetime</th><th class="actions"><span class="visually-hidden">Actions</span></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- PENDING APPROVALS -->
     <section id="tab-pending" class="tab-panel hidden">
       <div class="panel-header">
-        <h2>Pending Approvals</h2>
-        <button onclick="openAwardForm()">+ Nominate an Award</button>
+        <div>
+          <h2>Pending Approvals</h2>
+          <p class="panel-sub">Points only apply once a manager approves.</p>
+        </div>
+        <button onclick="openAwardForm()">Nominate an Award</button>
       </div>
-      <table id="pending-table">
-        <thead><tr><th>Employee</th><th>Type</th><th>Reason</th><th>Points</th><th>Notes</th><th>Requested</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-wrap">
+        <table id="pending-table">
+          <thead><tr><th>Employee</th><th>Request</th><th class="num">Points</th><th>Nominated By</th><th>Requested</th><th class="actions"><span class="visually-hidden">Actions</span></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- REWARDS -->
     <section id="tab-rewards" class="tab-panel hidden">
       <div class="panel-header">
-        <h2>Rewards Catalog</h2>
-        <button onclick="openRewardForm()">+ Add Reward</button>
+        <div>
+          <h2>Rewards Catalog</h2>
+          <p class="panel-sub">What employees can redeem by texting REDEEM and the reward name.</p>
+        </div>
+        <button onclick="openRewardForm()">Add Reward</button>
       </div>
-      <table id="rewards-table">
-        <thead><tr><th>Reward</th><th>Point Cost</th><th>$ Value</th><th>Description</th><th>Active</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-wrap">
+        <table id="rewards-table">
+          <thead><tr><th>Reward</th><th class="num">Point Cost</th><th class="num">$ Value</th><th>Description</th><th>Active</th><th class="actions"><span class="visually-hidden">Actions</span></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- RECOGNITION RULES -->
     <section id="tab-rules" class="tab-panel hidden">
       <div class="panel-header">
-        <h2>Recognition Rules</h2>
-        <button onclick="openRuleForm()">+ Add Rule</button>
+        <div>
+          <h2>Recognition Rules</h2>
+          <p class="panel-sub">Point values for anniversaries, milestones and other events.</p>
+        </div>
+        <button onclick="openRuleForm()">Add Rule</button>
       </div>
-      <table id="rules-table">
-        <thead><tr><th>Event</th><th>Points</th><th>$ Value</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-wrap narrow">
+        <table id="rules-table">
+          <thead><tr><th>Event</th><th class="num">Points</th><th class="num">$ Value</th><th class="actions"><span class="visually-hidden">Actions</span></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- LOG -->
     <section id="tab-log" class="tab-panel hidden">
-      <h2>Transaction Log</h2>
-      <table id="log-table">
-        <thead><tr><th>Date</th><th>Employee</th><th>Type</th><th>Reason</th><th>Points</th><th>Status</th><th>By</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="panel-header">
+        <div>
+          <h2>Transaction Log</h2>
+          <p class="panel-sub">Every award and redemption, newest first.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="log-table">
+          <thead><tr><th>Date</th><th>Employee</th><th>Request</th><th class="num">Points</th><th>Status</th><th>Nominated By</th><th>Approved/Denied By</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
   </main>
 </div>
 
-<!-- Generic modal used by all the "+" forms -->
+<!-- Generic modal used by all the "Add" forms -->
 <div id="modal-backdrop" class="modal-backdrop hidden">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <h3 id="modal-title"></h3>
     <div id="modal-body"></div>
     <div class="modal-actions">
@@ -107,4 +138,3 @@
 <script src="app.js"></script>
 </body>
 </html>
-

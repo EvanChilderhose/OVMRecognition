@@ -1,10 +1,16 @@
-// Run once after setting DATABASE_URL: `npm run init-db`
-// Creates all tables, then seeds Rewards and Recognition Rules with the values
-// from the original Employee_Recognition.xlsx so you don't have to re-enter them.
+// Database setup. Runs automatically every time the server starts (see
+// server.js), and can also be run by hand with `npm run init-db`.
+//
+// - migrate(): creates/updates tables and tidies existing data. Safe to run
+//   any number of times.
+// - seedIfEmpty(): loads Rewards and Recognition Rules from the original
+//   Employee_Recognition.xlsx — but only into an EMPTY table, so it never
+//   overwrites or re-adds anything a manager has since edited in the dashboard.
 
 const fs = require('fs');
 const path = require('path');
 const pool = require('./pool');
+const { normalizePhone } = require('../lib/phone');
 
 const RECOGNITION_RULES = [
   ['Birthday', 100, 20],
@@ -49,32 +55,60 @@ const REWARDS = [
   ['Long Weekend', 1500, 300, null, null]
 ];
 
-// Does the actual work. Callable from the CLI (`npm run init-db`) or from
-// the /setup/init-db HTTP route (used when Shell access isn't available,
-// e.g. on Render's free tier). Does NOT close the pool — the caller decides
-// whether the process is exiting (CLI) or the server keeps running (HTTP route).
-async function seed() {
+async function migrate() {
   const log = [];
   const say = (msg) => { console.log(msg); log.push(msg); };
 
-  say('Creating tables...');
+  say('Creating/updating tables...');
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(schema);
 
-  say('Seeding recognition rules...');
-  for (const [event, points, dollar] of RECOGNITION_RULES) {
-    await pool.query(
-      `INSERT INTO recognition_rules (event, points, dollar_value)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (event) DO UPDATE SET points = $2, dollar_value = $3`,
-      [event, points, dollar]
-    );
+  // Older versions stored the nominator's name in approved_by on pending
+  // awards (where it was later overwritten by the approver). Move it over.
+  await pool.query(
+    `UPDATE point_transactions SET nominated_by = approved_by, approved_by = NULL
+     WHERE type = 'award' AND status = 'pending' AND nominated_by IS NULL AND approved_by IS NOT NULL`
+  );
+
+  // Put every stored phone number in the same format inbound texts use
+  const employees = (await pool.query('SELECT id, name, phone FROM employees WHERE phone IS NOT NULL')).rows;
+  for (const emp of employees) {
+    const normalized = normalizePhone(emp.phone);
+    if (!normalized) {
+      say(`Warning: ${emp.name}'s phone "${emp.phone}" doesn't look like a valid number — texts from them won't match. Fix it in the dashboard.`);
+    } else if (normalized !== emp.phone) {
+      try {
+        await pool.query('UPDATE employees SET phone = $1 WHERE id = $2', [normalized, emp.id]);
+        say(`Reformatted ${emp.name}'s phone to ${normalized}`);
+      } catch (err) {
+        if (err.code !== '23505') throw err;
+        say(`Warning: ${emp.name}'s phone ${normalized} is also used by another employee — fix it in the dashboard.`);
+      }
+    }
   }
 
-  say('Seeding rewards...');
-  for (const [reward, cost, dollar, desc, fulfillment] of REWARDS) {
-    const existing = await pool.query('SELECT id FROM rewards WHERE reward = $1', [reward]);
-    if (existing.rows.length === 0) {
+  return log;
+}
+
+async function seedIfEmpty() {
+  const log = [];
+  const say = (msg) => { console.log(msg); log.push(msg); };
+
+  const ruleCount = Number((await pool.query('SELECT COUNT(*) FROM recognition_rules')).rows[0].count);
+  if (ruleCount === 0) {
+    say('Seeding recognition rules...');
+    for (const [event, points, dollar] of RECOGNITION_RULES) {
+      await pool.query(
+        'INSERT INTO recognition_rules (event, points, dollar_value) VALUES ($1, $2, $3)',
+        [event, points, dollar]
+      );
+    }
+  }
+
+  const rewardCount = Number((await pool.query('SELECT COUNT(*) FROM rewards')).rows[0].count);
+  if (rewardCount === 0) {
+    say('Seeding rewards...');
+    for (const [reward, cost, dollar, desc, fulfillment] of REWARDS) {
       await pool.query(
         `INSERT INTO rewards (reward, point_cost, dollar_value, description, fulfillment_instructions)
          VALUES ($1, $2, $3, $4, $5)`,
@@ -83,18 +117,18 @@ async function seed() {
     }
   }
 
-  say('Done. Tables created and seeded.');
   return log;
 }
 
 // Only run automatically when invoked directly via `node db/init.js` / `npm run init-db`
 if (require.main === module) {
-  seed()
-    .then(() => pool.end())
+  migrate()
+    .then(seedIfEmpty)
+    .then(() => { console.log('Done.'); return pool.end(); })
     .catch(err => {
       console.error(err);
       process.exit(1);
     });
 }
 
-module.exports = { seed };
+module.exports = { migrate, seedIfEmpty };

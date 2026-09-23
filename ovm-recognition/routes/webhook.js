@@ -6,23 +6,33 @@
 //   https://<your-app>.onrender.com/webhook/ghl-sms
 // with this JSON body (use GHL's merge-field picker to fill the {{ }} values):
 //   {
+//     "secret": "<same value as the WEBHOOK_SECRET environment variable>",
 //     "phone": "{{contact.phone}}",
 //     "name": "{{contact.name}}",
 //     "contactId": "{{contact.id}}",
 //     "message": "{{message.body}}"
 //   }
+//
+// The secret stops anyone else who finds this URL from posting fake texts
+// (e.g. pretending to be an employee and redeeming their points). It can also
+// be sent as an "x-webhook-secret" header instead of in the body.
 
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { withTransaction } = require('../db/pool');
 const { sendSMS } = require('../lib/ghl');
-
-function normalizePhone(phone) {
-  if (!phone) return null;
-  return phone.replace(/[^\d+]/g, '');
-}
+const { safeEqual } = require('../lib/http');
+const { normalizePhone } = require('../lib/phone');
 
 router.post('/ghl-sms', async (req, res) => {
+  const expected = process.env.WEBHOOK_SECRET;
+  const supplied = req.headers['x-webhook-secret'] || (req.body && req.body.secret);
+  if (expected && !safeEqual(supplied, expected)) {
+    console.warn('Rejected webhook call with missing or wrong secret');
+    return res.status(401).json({ error: 'Missing or wrong webhook secret' });
+  }
+
   // Respond immediately — GHL just needs a 200, the rest happens after
   res.json({ received: true });
 
@@ -74,22 +84,30 @@ router.post('/ghl-sms', async (req, res) => {
         return;
       }
 
-      if (employee.current_points < reward.point_cost) {
+      // Deduct points immediately and create a pending redemption for manager
+      // approval/fulfillment. The balance check is part of the UPDATE itself,
+      // so two REDEEM texts arriving together can't spend the same points twice.
+      const redeemed = await withTransaction(async (client) => {
+        const updated = await client.query(
+          `UPDATE employees SET current_points = current_points - $1
+           WHERE id = $2 AND current_points >= $1 RETURNING current_points`,
+          [reward.point_cost, employee.id]
+        );
+        if (updated.rows.length === 0) return false;
+        await client.query(
+          `INSERT INTO point_transactions (employee_id, type, reason, points, status)
+           VALUES ($1, 'redemption', $2, $3, 'pending')`,
+          [employee.id, reward.reward, -reward.point_cost]
+        );
+        return true;
+      });
+
+      if (!redeemed) {
+        const balance = (await pool.query('SELECT current_points FROM employees WHERE id = $1', [employee.id])).rows[0].current_points;
         await reply({ contactId, phone, name: employee.name },
-          `"${reward.reward}" costs ${reward.point_cost} points — you currently have ${employee.current_points}. Keep it up!`);
+          `"${reward.reward}" costs ${reward.point_cost} points — you currently have ${balance}. Keep it up!`);
         return;
       }
-
-      // Deduct points immediately and create a pending redemption for manager approval/fulfillment
-      await pool.query(
-        `UPDATE employees SET current_points = current_points - $1 WHERE id = $2`,
-        [reward.point_cost, employee.id]
-      );
-      await pool.query(
-        `INSERT INTO point_transactions (employee_id, type, reason, points, status)
-         VALUES ($1, 'redemption', $2, $3, 'pending')`,
-        [employee.id, reward.reward, -reward.point_cost]
-      );
 
       await reply({ contactId, phone, name: employee.name },
         `Requested "${reward.reward}" for ${reward.point_cost} points. It's pending manager approval — we'll text you once it's confirmed.`);

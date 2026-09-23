@@ -41,11 +41,15 @@ CREATE TABLE IF NOT EXISTS point_transactions (
   reason        TEXT NOT NULL,        -- recognition rule name, or reward name
   points        INTEGER NOT NULL,     -- positive for awards, negative for redemptions
   status        TEXT DEFAULT 'pending', -- pending / approved / denied / fulfilled (redemptions), or 'approved' immediately for auto awards
-  approved_by   TEXT,
+  nominated_by  TEXT,                 -- who put forward a manual award
+  approved_by   TEXT,                 -- who approved or denied it
   notes         TEXT,
   created_at    TIMESTAMPTZ DEFAULT now(),
   resolved_at   TIMESTAMPTZ
 );
+
+-- Columns added after the first release (no-ops on a fresh database)
+ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS nominated_by TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_transactions_employee ON point_transactions(employee_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON point_transactions(status);
