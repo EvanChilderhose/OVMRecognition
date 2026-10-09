@@ -112,9 +112,14 @@ function updateTextPreview(key) {
     if (footer.enabled) text += '\n\n' + footerBody.replace('{profile_link}', footer.sample.profile_link);
   }
   document.getElementById(`preview-${key}`).textContent = text;
-  // SMS messages are split into 160-character parts (fewer with emoji)
-  const parts = Math.max(1, Math.ceil(text.length / 153));
-  document.getElementById(`count-${key}`).textContent = `${text.length} characters${text.length > 160 ? ` · sends as ${parts} parts` : ''}`;
+  // SMS parts: plain texts fit 160 characters (153 per part when split). Any emoji or
+  // other special character switches the whole text to 70 (67 per part).
+  const plain = /^[A-Za-z0-9 \n\r@£$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\[~\]|€]*$/.test(text);
+  const units = [...text].length + (plain ? (text.match(/[\^{}\\[~\]|€]/g) || []).length : 0);
+  const [single, multi] = plain ? [160, 153] : [70, 67];
+  const parts = units <= single ? 1 : Math.ceil(units / multi);
+  document.getElementById(`count-${key}`).textContent =
+    `${units} characters${plain ? '' : ' (has emoji)'}${parts > 1 ? ` · sends as ${parts} parts` : ''}`;
 }
 
 function textStatus(key, msg, isError) {

@@ -5,7 +5,9 @@
 // Inactive employees and reset (old) tokens get a "link not valid" message.
 
 const express = require('express');
+const fs = require('fs');
 const path = require('path');
+const { appUrl } = require('../lib/profile');
 const router = express.Router();
 const pool = require('../db/pool');
 const { wrap, httpError } = require('../lib/http');
@@ -32,10 +34,13 @@ async function employeeForToken(token) {
   return result.rows[0] || null;
 }
 
-// The page itself — a static file that loads its data from the API below
+// The page itself — a static file that loads its data from the API below.
+// The link-preview tags need the app's full address, so it's filled in here.
+const PAGE = fs.readFileSync(path.join(__dirname, '..', 'public', 'me.html'), 'utf8');
 router.get('/me/:token', (req, res) => {
   privateHeaders(res);
-  res.sendFile(path.join(__dirname, '..', 'public', 'me.html'));
+  const base = appUrl() || `https://${req.get('host')}`;
+  res.type('html').send(PAGE.replace(/%APP_URL%/g, base));
 });
 
 router.get('/profile-api/:token', wrap(async (req, res) => {
