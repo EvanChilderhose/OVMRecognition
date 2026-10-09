@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#8c1c13">
+<title>My Awards — Ottawa Valley Meats</title>
+<link rel="icon" href="/logo-sm.png">
+<link rel="stylesheet" href="/me.css">
+</head>
+<body>
+
+<header class="top">
+  <img src="/logo-sm.png" alt="Ottawa Valley Meats" class="top-logo">
+  <p class="top-hello" id="hello">&nbsp;</p>
+</header>
+
+<main id="main" aria-busy="true">
+  <!-- Balance -->
+  <section class="balance card" aria-labelledby="balance-label">
+    <p class="balance-label" id="balance-label">Your points</p>
+    <p class="balance-value" id="balance"><span class="skeleton" style="width:4ch">&nbsp;</span></p>
+    <p class="balance-sub" id="lifetime">&nbsp;</p>
+    <p class="balance-hold hidden" id="on-hold"></p>
+    <div class="next hidden" id="next">
+      <div class="next-row"><span id="next-label"></span><span id="next-togo"></span></div>
+      <div class="bar"><div class="bar-fill" id="next-bar"></div></div>
+    </div>
+  </section>
+
+  <!-- About -->
+  <section class="facts" aria-label="About you">
+    <div class="fact"><span class="fact-value" id="f-shifts">—</span><span class="fact-label">Shifts completed<span class="fact-since" id="f-shifts-since"></span></span></div>
+    <div class="fact"><span class="fact-value" id="f-start">—</span><span class="fact-label" id="f-start-label">With OVM since</span></div>
+    <div class="fact"><span class="fact-value" id="f-bday">—</span><span class="fact-label">Birthday</span></div>
+  </section>
+
+  <!-- Tabs -->
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" class="tab active" aria-selected="true" aria-controls="p-rewards" id="t-rewards" data-panel="p-rewards">Rewards</button>
+    <button role="tab" class="tab" aria-selected="false" aria-controls="p-earn" id="t-earn" data-panel="p-earn">Earn points</button>
+    <button role="tab" class="tab" aria-selected="false" aria-controls="p-history" id="t-history" data-panel="p-history">History</button>
+  </nav>
+
+  <section class="panel" id="p-rewards" role="tabpanel" aria-labelledby="t-rewards">
+    <ul class="rewards" id="rewards"></ul>
+  </section>
+
+  <section class="panel hidden" id="p-earn" role="tabpanel" aria-labelledby="t-earn">
+    <div id="earn"></div>
+  </section>
+
+  <section class="panel hidden" id="p-history" role="tabpanel" aria-labelledby="t-history">
+    <ul class="history" id="history"></ul>
+  </section>
+
+  <p class="foot">You can also text <strong>POINTS</strong> anytime to check your balance.<br>Questions? Ask your manager.</p>
+</main>
+
+<!-- Shown when the link is wrong or has been reset -->
+<section class="gone hidden" id="gone">
+  <h1>This link isn't working</h1>
+  <p id="gone-msg">It may have been replaced with a new one. Ask your manager to send you a fresh link.</p>
+</section>
+
+<!-- Request confirmation -->
+<div class="sheet-backdrop hidden" id="sheet-backdrop">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <h2 id="sheet-title"></h2>
+    <p id="sheet-body"></p>
+    <p class="sheet-error hidden" id="sheet-error" role="alert"></p>
+    <div class="sheet-actions">
+      <button class="btn btn-quiet" id="sheet-cancel">Cancel</button>
+      <button class="btn" id="sheet-confirm">Request</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+<script src="/icons.js"></script>
+<script src="/me.js"></script>
+</body>
+</html>

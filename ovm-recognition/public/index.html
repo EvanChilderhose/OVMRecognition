@@ -37,6 +37,18 @@
   </aside>
 
   <main>
+    <!-- Month-end prompt (shown from the last day of a month through the first week of the next) -->
+    <div id="eotm-banner" class="month-banner hidden" role="region" aria-label="Employee of the Month">
+      <div class="month-banner-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/></svg>
+      </div>
+      <div class="month-banner-text">
+        <strong id="eotm-banner-title">Time to pick Employee of the Month</strong>
+        <span>They'll get <span id="eotm-banner-points">100</span> points and a text right away.</span>
+      </div>
+      <button onclick="openEmployeeOfMonthForm()">Choose winner</button>
+    </div>
+
     <!-- EMPLOYEES -->
     <section id="tab-employees" class="tab-panel">
       <div class="panel-header">
@@ -61,7 +73,10 @@
           <h2>Pending Approvals</h2>
           <p class="panel-sub">Points only apply once a manager approves.</p>
         </div>
-        <button onclick="openAwardForm()">Nominate an Award</button>
+        <div class="header-actions">
+          <button class="secondary" onclick="openEmployeeOfMonthForm()">Employee of the Month</button>
+          <button onclick="openAwardForm()">Nominate an Award</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table id="pending-table">
@@ -135,6 +150,7 @@
   </div>
 </div>
 
+<script src="icons.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

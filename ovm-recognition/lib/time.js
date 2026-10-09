@@ -30,4 +30,39 @@ function isSameMonthDay(dateStr, now) {
   return d.month === 2 && d.day === 29 && now.month === 2 && now.day === 28 && !isLeapYear(now.year);
 }
 
-module.exports = { TIMEZONE, today, parseDate, isSameMonthDay };
+// Current hour (0–23) in the business timezone
+function currentHour() {
+  return Number(new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE, hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+}
+
+function daysInMonth(year, month) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function isLastDayOfMonth(now) {
+  return now.day === daysInMonth(now.year, now.month);
+}
+
+const pad = n => String(n).padStart(2, '0');
+
+// 'YYYY-MM' for a month
+function periodOf(year, month) {
+  return `${year}-${pad(month)}`;
+}
+
+// Monthly awards are chosen from the last day of a month through the first
+// week of the next. Returns the month being chosen for ('YYYY-MM'), or null
+// outside that window.
+function monthEndPeriod(now) {
+  if (isLastDayOfMonth(now)) return periodOf(now.year, now.month);
+  if (now.day <= 7) return now.month === 1 ? periodOf(now.year - 1, 12) : periodOf(now.year, now.month - 1);
+  return null;
+}
+
+// '2026-10' -> 'October 2026'
+function periodLabel(period) {
+  const [y, m] = period.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString('en-CA', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+module.exports = { TIMEZONE, today, parseDate, isSameMonthDay, currentHour, isLastDayOfMonth, periodOf, monthEndPeriod, periodLabel };

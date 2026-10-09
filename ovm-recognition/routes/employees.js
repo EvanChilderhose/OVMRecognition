@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../db/pool');
 const { wrap, httpError } = require('../lib/http');
 const { normalizePhone } = require('../lib/phone');
+const { newProfileToken } = require('../lib/profile');
 
 // Validates and cleans up the fields shared by add + edit
 function readEmployee(body) {
@@ -32,9 +33,9 @@ router.post('/', wrap(async (req, res) => {
   const values = readEmployee(req.body);
   try {
     const result = await pool.query(
-      `INSERT INTO employees (name, phone, department, start_date, birthday, status)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      values
+      `INSERT INTO employees (name, phone, department, start_date, birthday, status, profile_token)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [...values, newProfileToken()]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -55,6 +56,17 @@ router.put('/:id', wrap(async (req, res) => {
   } catch (err) {
     throw duplicatePhone(err);
   }
+  if (result.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
+  res.json(result.rows[0]);
+}));
+
+// Give an employee a new profile link — the old one stops working immediately
+// (e.g. if a text with their link was forwarded to someone else)
+router.post('/:id/reset-profile-link', wrap(async (req, res) => {
+  const result = await pool.query(
+    'UPDATE employees SET profile_token = $1 WHERE id = $2 RETURNING *',
+    [newProfileToken(), req.params.id]
+  );
   if (result.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
   res.json(result.rows[0]);
 }));

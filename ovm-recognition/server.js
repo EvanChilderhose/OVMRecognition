@@ -4,7 +4,10 @@ const path = require('path');
 const { safeEqual } = require('./lib/http');
 
 const app = express();
-app.use(express.json());
+// JSON bodies are capped at 100 KB, except reward photo uploads, which parse
+// their own (larger) body in routes/rewards.js
+const smallJson = express.json();
+app.use((req, res, next) => (/^\/api\/rewards\/\d+\/image$/.test(req.path) ? next() : smallJson(req, res, next)));
 
 // Very simple shared-passcode gate for the dashboard (just you + managers).
 // Set DASHBOARD_PASSCODE in the environment; leave it unset to disable.
@@ -22,7 +25,10 @@ app.use('/api/employees', require('./routes/employees'));
 app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/recognition-rules', require('./routes/rules'));
 app.use('/api/transactions', require('./routes/transactions'));
+app.use('/api/monthly', require('./routes/monthly'));
 app.use('/webhook', require('./routes/webhook'));
+app.use(require('./routes/profile')); // employee profile pages: /me/<token> (outside /api, so no passcode)
+app.use(require('./routes/rewards').imageRouter); // reward photos: /reward-image/<id>
 
 app.use(express.static(path.join(__dirname, 'public')));
 

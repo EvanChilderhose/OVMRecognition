@@ -46,6 +46,14 @@ sections in order.
    - `WEBHOOK_SECRET` — make up a long random string (30+ characters);
      you'll paste the same value into GHL in step 3
    - `TIMEZONE` — optional, defaults to `America/Toronto` (Ottawa time)
+   - `ADMIN_PHONE` — your own cell number (e.g. `613-555-1234`). The app
+     texts it at 10 AM on the last day of each month as a reminder to pick
+     Employee of the Month and run the monthly awards. Leave it out to turn
+     the reminder off.
+   - `APP_URL` — your Render address, e.g. `https://ovm-recognition.onrender.com`.
+     Used to build each employee's "View your awards profile" link in texts.
+     Optional on Render (it fills this in automatically), but set it if you
+     ever use a custom domain.
 6. Click **Create Web Service**. Render will give you a URL like
    `https://ovm-recognition.onrender.com` — that's your dashboard address.
 

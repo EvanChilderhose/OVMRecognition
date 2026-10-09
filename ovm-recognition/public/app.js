@@ -62,6 +62,84 @@ function initApp() {
   setupTabs();
   loadEmployees();
   refreshPendingCount();
+  loadEmployeeOfMonthStatus();
+}
+
+// ---------- Employee of the Month ----------
+let eotmStatus = null;
+
+async function loadEmployeeOfMonthStatus() {
+  try {
+    eotmStatus = await api('/api/monthly/employee-of-the-month');
+    document.getElementById('eotm-banner-title').textContent = `Time to pick Employee of the Month for ${eotmStatus.label}`;
+    if (eotmStatus.points) document.getElementById('eotm-banner-points').textContent = eotmStatus.points;
+    document.getElementById('eotm-banner').classList.toggle('hidden', !eotmStatus.due);
+  } catch (e) { /* the banner is optional — never block the dashboard */ }
+}
+
+// The month being chosen for, plus the two before it (in case one was missed)
+function eotmMonthOptions(period) {
+  const [y, m] = period.split('-').map(Number);
+  return [0, 1, 2].map(back => {
+    const d = new Date(y, m - 1 - back, 15);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return { value, label: d.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' }) };
+  });
+}
+
+function toggleEotmOther() {
+  const other = val('f-eotm-employee') === 'other';
+  document.getElementById('eotm-other').classList.toggle('hidden', !other);
+  document.getElementById('eotm-points-note').classList.toggle('hidden', other);
+  document.getElementById('modal-save').textContent = other ? 'Record it' : 'Award & send text';
+  if (other) document.getElementById('f-eotm-name').focus();
+}
+
+async function openEmployeeOfMonthForm() {
+  try {
+    if (!eotmStatus) eotmStatus = await api('/api/monthly/employee-of-the-month');
+    if (!employeesCache.length) employeesCache = await api('/api/employees');
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+    return;
+  }
+  const active = employeesCache.filter(e => e.status !== 'Inactive');
+  const recent = eotmStatus.recent.length
+    ? `<p class="hint-text">Recent winners: ${eotmStatus.recent.map(r => `${esc(r.label)} — ${esc(r.winner_name)}`).join(' · ')}</p>`
+    : '';
+  showModal('Employee of the Month', `
+    ${field('f-eotm-period', 'Month', `<select id="f-eotm-period">${eotmMonthOptions(eotmStatus.period).map(o => `<option value="${o.value}">${esc(o.label)}</option>`).join('')}</select>`)}
+    ${field('f-eotm-employee', 'Employee', `
+      <select id="f-eotm-employee" onchange="toggleEotmOther()">
+        <option value="">Choose an employee…</option>
+        ${active.map(e => `<option value="${e.id}">${esc(e.name)}${e.department ? ` — ${esc(e.department)}` : ''}</option>`).join('')}
+        <option value="other">Other — not in the rewards program</option>
+      </select>`)}
+    <div id="eotm-other" class="other-box hidden">
+      <p class="hint-text">The month is marked as done, but no points are given and no text is sent.</p>
+      ${field('f-eotm-name', 'Who <span class="hint">(optional, for the record)</span>', '<input id="f-eotm-name">')}
+    </div>
+    ${field('f-eotm-note', 'Why they won <span class="hint">(optional, for the record)</span>', '<textarea id="f-eotm-note"></textarea>')}
+    ${field('f-eotm-by', 'Your Name', '<input id="f-eotm-by">')}
+    <p class="hint-text" id="eotm-points-note">${eotmStatus.points || 100} points are added right away and they get a text with their profile link.</p>
+    ${recent}
+  `, async () => {
+    const choice = val('f-eotm-employee');
+    if (!choice) throw new Error('Choose an employee, or pick "Other — not in the rewards program".');
+    const payload = { period: val('f-eotm-period'), awarded_by: val('f-eotm-by'), note: val('f-eotm-note') };
+    if (choice === 'other') { payload.other = true; payload.other_name = val('f-eotm-name'); }
+    else payload.employee_id = Number(choice);
+    const result = await api('/api/monthly/employee-of-the-month', { method: 'POST', body: JSON.stringify(payload) });
+    closeModal();
+    eotmStatus = null;
+    await loadEmployeeOfMonthStatus();
+    loadEmployees();
+    alert(result.in_program
+      ? `${result.winner} is Employee of the Month for ${result.label}. They've been texted.`
+      : `Recorded: ${result.label}'s Employee of the Month went outside the rewards program. No points or text.`);
+  });
+  document.getElementById('modal-save').textContent = 'Award & send text';
+  document.getElementById('f-eotm-employee').focus();
 }
 
 // ---------- Employees ----------
@@ -98,6 +176,21 @@ function openEmployeeForm(id) {
       <option ${emp.status !== 'Inactive' ? 'selected' : ''}>Active</option>
       <option ${emp.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
     </select>`)}
+    ${emp.profile_token ? `
+    <div class="field profile-link">
+      <label for="f-profile">Profile link <span class="hint">— added to every text they get</span></label>
+      <div class="link-row">
+        <input id="f-profile" readonly value="${esc(profileLink(emp))}">
+        <button type="button" class="secondary" onclick="copyProfileLink()">Copy</button>
+        <a class="button-link" href="${esc(profileLink(emp))}" target="_blank" rel="noopener noreferrer">Open</a>
+      </div>
+      <button type="button" class="link reset-link" onclick="resetProfileLink(${emp.id})">Reset link (if it was shared with someone else)</button>
+    </div>` : id ? `
+    <div class="field profile-link">
+      <label>Profile link</label>
+      <p class="hint-text">No link yet — one is created automatically with their first text.</p>
+      <button type="button" class="secondary create-link" onclick="createProfileLink(${emp.id})">Create profile link now</button>
+    </div>` : ''}
   `, async () => {
     const payload = {
       name: val('f-name'), phone: val('f-phone'), department: val('f-department'),
@@ -108,6 +201,41 @@ function openEmployeeForm(id) {
     closeModal();
     loadEmployees();
   });
+}
+
+function profileLink(emp) { return `${location.origin}/me/${emp.profile_token}`; }
+
+async function copyProfileLink() {
+  const input = document.getElementById('f-profile');
+  try { await navigator.clipboard.writeText(input.value); }
+  catch (e) { input.select(); document.execCommand('copy'); }
+  const btn = document.querySelector('.link-row button');
+  btn.textContent = 'Copied';
+  setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+}
+
+async function resetProfileLink(id) {
+  if (!confirm('Make a new profile link? The old link will stop working right away. Their next text will include the new one.')) return;
+  try {
+    const emp = await api(`/api/employees/${id}/reset-profile-link`, { method: 'POST' });
+    const i = employeesCache.findIndex(e => e.id === id);
+    if (i >= 0) employeesCache[i] = emp;
+    document.getElementById('f-profile').value = profileLink(emp);
+    document.querySelector('.link-row a').href = profileLink(emp);
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+  }
+}
+
+async function createProfileLink(id) {
+  try {
+    const emp = await api(`/api/employees/${id}/reset-profile-link`, { method: 'POST' });
+    const i = employeesCache.findIndex(e => e.id === id);
+    if (i >= 0) employeesCache[i] = emp;
+    openEmployeeForm(id); // re-open to show the new link
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+  }
 }
 
 // ---------- Pending approvals ----------
@@ -185,7 +313,7 @@ async function loadRewards() {
   const tbody = document.querySelector('#rewards-table tbody');
   tbody.innerHTML = rewardsCache.map(r => `
     <tr>
-      <td class="strong">${esc(r.reward)}</td>
+      <td class="strong"><span class="reward-cell">${RewardIcons.picture(r, 'thumb')}${esc(r.reward)}</span></td>
       <td class="num strong">${fmtNum(r.point_cost)}</td>
       <td class="num">${fmtMoney(r.dollar_value)}</td>
       <td class="dim">${esc(r.description)}</td>
@@ -194,10 +322,89 @@ async function loadRewards() {
     </tr>`).join('') || emptyRow(6, 'No rewards yet. Add one so employees have something to redeem.');
 }
 
+// Picture choices while the reward form is open. Saved together with the form.
+let picState = null;
+
+function renderPicPreview() {
+  const r = picState.reward;
+  const preview = picState.photoData
+    ? `<img class="pic-big photo" src="data:${picState.photoMime};base64,${picState.photoData}" alt="">`
+    : RewardIcons.picture({ ...r, reward: val('f-reward'), icon: val('f-icon') || null, has_image: r.has_image && !picState.removePhoto }, 'pic-big');
+  document.getElementById('pic-preview').innerHTML = preview;
+  const hasPhoto = picState.photoData || (r.has_image && !picState.removePhoto);
+  document.getElementById('pic-remove').classList.toggle('hidden', !hasPhoto);
+  document.getElementById('pic-icon-row').classList.toggle('dimmed', !!hasPhoto);
+}
+
+// Shrinks a photo to at most 800px on its longest side and re-encodes it as JPEG,
+// so uploads are small and load quickly on employees' phones.
+function shrinkPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, 800 / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; // transparent PNGs get a white background
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That file couldn\'t be read as a photo. Try a JPEG or PNG.')); };
+    img.src = url;
+  });
+}
+
+async function pickPhoto(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    picState.photoData = await shrinkPhoto(file);
+    picState.photoMime = 'image/jpeg';
+    picState.removePhoto = false;
+    renderPicPreview();
+  } catch (e) {
+    alert(e.message);
+  }
+  input.value = '';
+}
+
+function removePhoto() {
+  picState.photoData = null;
+  picState.removePhoto = true;
+  renderPicPreview();
+}
+
 function openRewardForm(id) {
   const r = id ? rewardsCache.find(x => x.id === id) : {};
+  picState = { reward: r, photoData: null, photoMime: null, removePhoto: false };
+  const iconOptions = Object.entries(RewardIcons.ICONS)
+    .map(([key, ic]) => `<option value="${key}" ${r.icon === key ? 'selected' : ''}>${ic.label}</option>`).join('');
   showModal(id ? 'Edit Reward' : 'Add Reward', `
-    ${field('f-reward', 'Reward Name', `<input id="f-reward" value="${esc(r.reward)}">`)}
+    <div class="field">
+      <label>Picture <span class="hint">— shown to employees on their profile</span></label>
+      <div class="pic-row">
+        <div id="pic-preview"></div>
+        <div class="pic-controls">
+          <div class="pic-buttons">
+            <label class="button-link">Upload photo<input type="file" accept="image/*" class="hidden" onchange="pickPhoto(this)"></label>
+            <button type="button" class="link hidden" id="pic-remove" onclick="removePhoto()">Remove photo</button>
+          </div>
+          <div id="pic-icon-row">
+            <select id="f-icon" onchange="renderPicPreview()" aria-label="Icon">
+              <option value="">Icon: automatic (${esc(RewardIcons.ICONS[RewardIcons.guess(r.reward)].label)})</option>
+              ${iconOptions}
+            </select>
+            <p class="hint-text">The icon is used when there's no photo.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    ${field('f-reward', 'Reward Name', `<input id="f-reward" value="${esc(r.reward)}" oninput="renderPicPreview()">`)}
     <div class="field-row">
       ${field('f-cost', 'Point Cost', `<input id="f-cost" type="number" value="${esc(r.point_cost)}">`)}
       ${field('f-dollar', 'Dollar Value', `<input id="f-dollar" type="number" value="${esc(r.dollar_value)}">`)}
@@ -208,13 +415,21 @@ function openRewardForm(id) {
   `, async () => {
     const payload = {
       reward: val('f-reward'), point_cost: Number(val('f-cost')), dollar_value: Number(val('f-dollar')) || null,
-      description: val('f-desc'), fulfillment_instructions: val('f-fulfill'), active: val('f-active') === 'true'
+      description: val('f-desc'), fulfillment_instructions: val('f-fulfill'), active: val('f-active') === 'true',
+      icon: val('f-icon') || null
     };
-    if (id) await api(`/api/rewards/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    else await api('/api/rewards', { method: 'POST', body: JSON.stringify(payload) });
+    const saved = id
+      ? await api(`/api/rewards/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+      : await api('/api/rewards', { method: 'POST', body: JSON.stringify(payload) });
+    if (picState.photoData) {
+      await api(`/api/rewards/${saved.id}/image`, { method: 'PUT', body: JSON.stringify({ data: picState.photoData, mime: picState.photoMime }) });
+    } else if (picState.removePhoto) {
+      await api(`/api/rewards/${saved.id}/image`, { method: 'DELETE' });
+    }
     closeModal();
     loadRewards();
   });
+  renderPicPreview();
 }
 
 // ---------- Recognition rules ----------

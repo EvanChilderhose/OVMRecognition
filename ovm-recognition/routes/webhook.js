@@ -20,10 +20,10 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
-const { withTransaction } = require('../db/pool');
-const { sendSMS } = require('../lib/ghl');
 const { safeEqual } = require('../lib/http');
 const { normalizePhone } = require('../lib/phone');
+const { sendTemplate } = require('../lib/messages');
+const { requestReward } = require('../lib/redeem');
 
 router.post('/ghl-sms', async (req, res) => {
   const expected = process.env.WEBHOOK_SECRET;
@@ -52,81 +52,40 @@ router.post('/ghl-sms', async (req, res) => {
     );
 
     if (!employee) {
-      await reply({ contactId, phone, name: body.name }, "We couldn't match this number to an employee record. Please contact your manager.");
+      await sendTemplate('unknown_number', {}, { contactId, phone, name: body.name });
       return;
     }
 
+    const to = { employee, contactId };
     const upper = text.toUpperCase();
 
     if (upper === 'POINTS' || upper === 'BALANCE') {
-      await reply({ contactId, phone, name: employee.name },
-        `Hi ${employee.name.split(' ')[0]}, you have ${employee.current_points} points available (${employee.lifetime_points} earned all-time).`);
+      await sendTemplate('balance', {}, to);
       return;
     }
 
     if (upper.startsWith('REDEEM')) {
       const rewardName = text.slice(6).trim(); // everything after "REDEEM"
       if (!rewardName) {
-        await reply({ contactId, phone, name: employee.name },
-          `To redeem, text REDEEM followed by the reward name, e.g. "REDEEM OVM Flannel".`);
+        await sendTemplate('redeem_how', {}, to);
         return;
       }
 
-      const rewardResult = await pool.query(
-        `SELECT * FROM rewards WHERE active = true AND LOWER(reward) = LOWER($1)`,
-        [rewardName]
-      );
-      const reward = rewardResult.rows[0];
-
-      if (!reward) {
-        await reply({ contactId, phone, name: employee.name },
-          `We couldn't find a reward called "${rewardName}". Text POINTS to see your balance, or check with your manager for exact reward names.`);
-        return;
+      const result = await requestReward(employee.id, { rewardName });
+      if (result.status === 'not_found') {
+        await sendTemplate('redeem_not_found', { reward: rewardName }, to);
+      } else if (result.status === 'not_enough') {
+        await sendTemplate('redeem_not_enough', { reward: result.reward.reward, cost: result.reward.point_cost, balance: result.balance }, to);
+      } else {
+        await sendTemplate('redeem_requested', { reward: result.reward.reward, cost: result.reward.point_cost, balance: result.balance }, to);
       }
-
-      // Deduct points immediately and create a pending redemption for manager
-      // approval/fulfillment. The balance check is part of the UPDATE itself,
-      // so two REDEEM texts arriving together can't spend the same points twice.
-      const redeemed = await withTransaction(async (client) => {
-        const updated = await client.query(
-          `UPDATE employees SET current_points = current_points - $1
-           WHERE id = $2 AND current_points >= $1 RETURNING current_points`,
-          [reward.point_cost, employee.id]
-        );
-        if (updated.rows.length === 0) return false;
-        await client.query(
-          `INSERT INTO point_transactions (employee_id, type, reason, points, status)
-           VALUES ($1, 'redemption', $2, $3, 'pending')`,
-          [employee.id, reward.reward, -reward.point_cost]
-        );
-        return true;
-      });
-
-      if (!redeemed) {
-        const balance = (await pool.query('SELECT current_points FROM employees WHERE id = $1', [employee.id])).rows[0].current_points;
-        await reply({ contactId, phone, name: employee.name },
-          `"${reward.reward}" costs ${reward.point_cost} points — you currently have ${balance}. Keep it up!`);
-        return;
-      }
-
-      await reply({ contactId, phone, name: employee.name },
-        `Requested "${reward.reward}" for ${reward.point_cost} points. It's pending manager approval — we'll text you once it's confirmed.`);
       return;
     }
 
-    await reply({ contactId, phone, name: employee.name },
-      `Hi ${employee.name.split(' ')[0]}! Text POINTS to check your balance, or REDEEM followed by a reward name (e.g. "REDEEM $100 Meat").`);
+    await sendTemplate('help', {}, to);
   } catch (err) {
     console.error('Webhook error:', err);
   }
 });
-
-async function reply(target, message) {
-  try {
-    await sendSMS({ contactId: target.contactId, phone: target.phone, name: target.name, message });
-  } catch (err) {
-    console.error('Failed to send reply SMS:', err.message);
-  }
-}
 
 module.exports = router;

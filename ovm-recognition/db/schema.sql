@@ -50,9 +50,47 @@ CREATE TABLE IF NOT EXISTS point_transactions (
 
 -- Columns added after the first release (no-ops on a fresh database)
 ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS nominated_by TEXT;
+-- Reward pictures: an uploaded photo (stored here, since Render's disk is wiped on each
+-- deploy) or one of the built-in icons. image_version changes on each upload so phones
+-- don't keep showing an old cached photo.
+ALTER TABLE rewards ADD COLUMN IF NOT EXISTS icon TEXT;
+ALTER TABLE rewards ADD COLUMN IF NOT EXISTS image BYTEA;
+ALTER TABLE rewards ADD COLUMN IF NOT EXISTS image_mime TEXT;
+ALTER TABLE rewards ADD COLUMN IF NOT EXISTS image_version INTEGER DEFAULT 0;
+-- Secret code in each employee's personal profile link (/me/<token>). Created when the
+-- employee is added, or the first time a link is needed (see lib/profile.js).
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_token TEXT UNIQUE;
+-- Which month a monthly award is for, as 'YYYY-MM' (e.g. Employee of the Month)
+ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS period TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_transactions_employee ON point_transactions(employee_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON point_transactions(status);
+
+-- Employee of the Month, one pick per month. employee_id is empty when it went to
+-- someone outside the rewards program ("Other") — then no points or text are given.
+CREATE TABLE IF NOT EXISTS employee_of_month (
+  period       TEXT PRIMARY KEY,                    -- 'YYYY-MM'
+  employee_id  INTEGER REFERENCES employees(id),
+  other_name   TEXT,
+  awarded_by   TEXT,
+  note         TEXT,
+  created_at   TIMESTAMPTZ DEFAULT now()
+);
+
+-- One-off setup steps that have already run, so they never repeat
+-- (e.g. adding a new recognition rule once, even if it's later renamed)
+CREATE TABLE IF NOT EXISTS app_setup_done (
+  key      TEXT PRIMARY KEY,
+  done_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- Reminders texted to managers, one per kind per month, so a restart never double-sends
+CREATE TABLE IF NOT EXISTS admin_reminders (
+  kind     TEXT NOT NULL,   -- e.g. 'month_end'
+  period   TEXT NOT NULL,   -- 'YYYY-MM'
+  sent_at  TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (kind, period)
+);
 
 -- Log of every inbound/outbound SMS for troubleshooting and an audit trail
 CREATE TABLE IF NOT EXISTS sms_log (

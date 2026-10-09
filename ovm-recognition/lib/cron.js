@@ -1,13 +1,21 @@
-// Runs once a day. Checks every active employee for a birthday or work
-// anniversary that matches today, and creates a PENDING award for it —
-// a manager still has to approve it in the dashboard before points are
-// added and the text goes out. This never auto-texts anyone.
+// Scheduled jobs.
+//
+// 1. Once a day: checks every active employee for a birthday or work
+//    anniversary that matches today, and creates a PENDING award for it —
+//    a manager still has to approve it in the dashboard before points are
+//    added and the text goes out. This never auto-texts employees.
+// 2. Month-end reminder: on the last day of each month, from 10 AM, texts the
+//    program manager (ADMIN_PHONE) to pick Employee of the Month and run the
+//    monthly awards. Sent once per month.
 //
 // "Today" is always Ottawa time (see lib/time.js), not the server's UTC clock.
 
 const cron = require('node-cron');
 const pool = require('../db/pool');
-const { TIMEZONE, today, parseDate, isSameMonthDay } = require('./time');
+const { TIMEZONE, today, parseDate, isSameMonthDay, currentHour, isLastDayOfMonth, periodOf, periodLabel } = require('./time');
+const { normalizePhone } = require('./phone');
+const { appUrl } = require('./profile');
+const REMINDER_HOUR = 10;
 
 async function checkBirthdaysAndAnniversaries() {
   const now = today();
@@ -57,17 +65,45 @@ async function maybeCreateAward(employee, eventLabel, rule, now) {
   );
 }
 
+// ADMIN_PHONE: the manager's number (commas allow more than one, if ever needed)
+function adminPhones() {
+  return String(process.env.ADMIN_PHONE || '').split(',').map(p => normalizePhone(p)).filter(Boolean);
+}
+
+async function sendMonthEndReminder() {
+  const now = today();
+  if (!isLastDayOfMonth(now) || currentHour() < REMINDER_HOUR) return;
+  const phones = adminPhones();
+  if (!phones.length || !process.env.GHL_API_KEY) return;
+
+  // Claim this month's reminder first, so overlapping runs can't both send it
+  const period = periodOf(now.year, now.month);
+  const claimed = await pool.query(
+    `INSERT INTO admin_reminders (kind, period) VALUES ('month_end', $1) ON CONFLICT DO NOTHING RETURNING period`,
+    [period]
+  );
+  if (!claimed.rows.length) return; // already sent this month
+
+  const { sendTemplate } = require('./messages');
+  for (const phone of phones) {
+    await sendTemplate('admin_month_end', { month: periodLabel(period), dashboard_link: appUrl() || 'the dashboard' }, { phone, name: 'OVM Manager' });
+  }
+}
+
 function run() {
   checkBirthdaysAndAnniversaries().catch(err => console.error('Birthday/anniversary check failed:', err));
+  sendMonthEndReminder().catch(err => console.error('Month-end reminder failed:', err));
 }
 
 function start() {
-  // Runs every day at 7:00 AM Ottawa time
+  // Birthdays/anniversaries: every day at 7:00 AM Ottawa time
   cron.schedule('0 7 * * *', run, { timezone: TIMEZONE });
+  // Month-end reminder: checked every hour (it only sends on the last day, from 10 AM, once)
+  cron.schedule('5 * * * *', () => sendMonthEndReminder().catch(err => console.error('Month-end reminder failed:', err)), { timezone: TIMEZONE });
 
   // Also check at startup: on Render's free tier the app sleeps when idle and
-  // would miss the 7 AM run. The duplicate check above makes this safe.
+  // would miss the scheduled runs. The duplicate checks make this safe.
   run();
 }
 
-module.exports = { start, checkBirthdaysAndAnniversaries };
+module.exports = { start, checkBirthdaysAndAnniversaries, sendMonthEndReminder };

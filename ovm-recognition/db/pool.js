@@ -7,9 +7,11 @@ require('dotenv').config();
 types.setTypeParser(1082, value => value);
 
 // DATABASE_URL comes from Supabase (Project Settings -> Database -> Connection string -> URI)
+// Supabase needs SSL; a database on this computer (local testing) doesn't support it.
+const isLocal = /@(localhost|127\.0\.0\.1)[:/]/.test(process.env.DATABASE_URL || '');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: isLocal ? false : { rejectUnauthorized: false }
 });
 
 // Runs fn(client) inside BEGIN/COMMIT, rolling back if it throws. Use this

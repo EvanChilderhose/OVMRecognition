@@ -44,7 +44,14 @@ const RECOGNITION_RULES = [
   ['Above + Beyond', 50, 10],
   ['Major Improvement', 50, 10],
   ['5-Star Review Mentioning Your Name', 50, 10],
-  ['Difficult Interaction Well Handled', 50, 10]
+  ['Difficult Interaction Well Handled', 50, 10],
+  ['Employee of the Month', 100, 20]
+];
+
+// Rules added after the first release. Each is added to an existing database
+// exactly once — if a manager later renames or edits it, it isn't re-added.
+const RULES_ADDED_LATER = [
+  ['Employee of the Month', 100, 20]
 ];
 
 const REWARDS = [
@@ -103,6 +110,18 @@ async function seedIfEmpty() {
         [event, points, dollar]
       );
     }
+  }
+
+  for (const [event, points, dollar] of RULES_ADDED_LATER) {
+    const key = `rule:${event}`;
+    const done = (await pool.query('SELECT 1 FROM app_setup_done WHERE key = $1', [key])).rows.length > 0;
+    if (done) continue;
+    const added = await pool.query(
+      'INSERT INTO recognition_rules (event, points, dollar_value) VALUES ($1, $2, $3) ON CONFLICT (event) DO NOTHING',
+      [event, points, dollar]
+    );
+    if (added.rowCount) say(`Added recognition rule "${event}"`);
+    await pool.query('INSERT INTO app_setup_done (key) VALUES ($1) ON CONFLICT DO NOTHING', [key]);
   }
 
   const rewardCount = Number((await pool.query('SELECT COUNT(*) FROM rewards')).rows[0].count);
