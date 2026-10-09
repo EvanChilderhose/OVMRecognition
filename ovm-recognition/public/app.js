@@ -410,6 +410,113 @@ async function resetProfileLink(id) {
   }
 }
 
+// ---------- Send a message (broadcast) ----------
+let bcFooter = null;
+
+function bcRecipients() {
+  const people = employeesCache.filter(e => e.status !== 'Inactive' && e.phone);
+  const mode = document.querySelector('input[name=bc-mode]:checked').value;
+  if (mode === 'all') return people;
+  if (mode === 'dept') {
+    const depts = [...document.querySelectorAll('.bc-dept:checked')].map(c => c.value);
+    return people.filter(e => depts.includes(e.department || 'No department'));
+  }
+  const ids = [...document.querySelectorAll('.bc-person:checked')].map(c => Number(c.value));
+  return people.filter(e => ids.includes(e.id));
+}
+
+function bcUpdate() {
+  const mode = document.querySelector('input[name=bc-mode]:checked').value;
+  document.getElementById('bc-depts').classList.toggle('hidden', mode !== 'dept');
+  document.getElementById('bc-people').classList.toggle('hidden', mode !== 'pick');
+  const who = bcRecipients();
+  const body = document.getElementById('bc-body').value;
+  const sample = who[0] || { name: 'Sam Sample', current_points: 300, lifetime_points: 450 };
+  const vars = { first_name: sample.name.split(' ')[0], balance: sample.current_points, lifetime: sample.lifetime_points };
+  let text = body.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+  if (document.getElementById('bc-link').checked && bcFooter) text += '\n\n' + bcFooter.replace('{profile_link}', location.origin + '/me/…');
+  document.getElementById('bc-preview').textContent = text || 'Your message will appear here.';
+  document.getElementById('bc-preview-who').textContent = who[0] ? 'Preview for ' + who[0].name : 'Preview';
+  const plain = !/[^\x00-\x7F£¥èéùìòÇØøÅåÄÖÑÜßÉäöñüà€]/.test(text);
+  const n = [...text].length;
+  const parts = n <= (plain ? 160 : 70) ? 1 : Math.ceil(n / (plain ? 153 : 67));
+  document.getElementById('bc-count').textContent = n + ' characters' + (parts > 1 ? ' · sends as ' + parts + ' parts' : '');
+  document.getElementById('modal-save').textContent = who.length ? 'Send to ' + who.length + (who.length === 1 ? ' person' : ' people') : 'Send';
+}
+
+async function openBroadcast() {
+  try {
+    if (!employeesCache.length) employeesCache = await api('/api/employees');
+    if (bcFooter === null) {
+      const f = (await api('/api/texts')).find(t => t.key === 'profile_footer');
+      bcFooter = f && f.enabled ? f.body : '';
+    }
+  } catch (e) { if (e.message !== 'unauthorized') alert(e.message); return; }
+  const people = employeesCache.filter(e => e.status !== 'Inactive' && e.phone);
+  const depts = [...new Set(people.map(e => e.department || 'No department'))].sort();
+  const noPhone = employeesCache.filter(e => e.status !== 'Inactive' && !e.phone).length;
+  const deptBoxes = depts.map(d => '<label><input type="checkbox" class="bc-dept" value="' + esc(d) + '" onchange="bcUpdate()"> ' + esc(d) +
+    ' (' + people.filter(e => (e.department || 'No department') === d).length + ')</label>').join('');
+  const personBoxes = people.map(e => '<label><input type="checkbox" class="bc-person" value="' + e.id + '" onchange="bcUpdate()"> ' + esc(e.name) +
+    (e.department ? ' <span class="dim">· ' + esc(e.department) + '</span>' : '') + '</label>').join('');
+  showModal('Send a message', `
+    <div class="field">
+      <label>Who gets it</label>
+      <div class="bc-modes">
+        <label><input type="radio" name="bc-mode" value="all" checked onchange="bcUpdate()"> Everyone (${people.length})</label>
+        <label><input type="radio" name="bc-mode" value="dept" onchange="bcUpdate()"> By department</label>
+        <label><input type="radio" name="bc-mode" value="pick" onchange="bcUpdate()"> Choose people</label>
+      </div>
+      <div id="bc-depts" class="bc-list hidden">${deptBoxes}</div>
+      <div id="bc-people" class="bc-list hidden">${personBoxes}</div>
+      ${noPhone ? '<p class="hint-text">' + noPhone + " active employee(s) have no phone number and won't get it.</p>" : ''}
+    </div>
+    ${field('bc-body', 'Message <span class="hint">({first_name} is filled in for each person)</span>', '<textarea id="bc-body" rows="4" oninput="bcUpdate()" placeholder="Hi {first_name}! Reminder: team BBQ this Friday at noon."></textarea>')}
+    <label class="bc-check"><input type="checkbox" id="bc-link" checked onchange="bcUpdate()"> Add their profile link at the end</label>
+    <div>
+      <p class="hint-text" id="bc-preview-who">Preview</p>
+      <div class="text-preview" id="bc-preview"></div>
+      <p class="hint-text" id="bc-count"></p>
+    </div>
+    <div class="text-actions">
+      <button type="button" class="secondary small" onclick="bcTest()">Send me a test first</button>
+      <span class="text-status" id="bc-status" role="status"></span>
+    </div>
+  `, async () => {
+    const who = bcRecipients();
+    const body = document.getElementById('bc-body').value;
+    if (!who.length) throw new Error('Choose who should get the message.');
+    if (!body.trim()) throw new Error('Write a message first.');
+    if (!confirm('Send this message to ' + who.length + (who.length === 1 ? ' person' : ' people') + '?\n\n' + who.map(e => e.name).join(', '))) return;
+    const btn = document.getElementById('modal-save');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    try {
+      const r = await api('/api/broadcast', { method: 'POST', body: JSON.stringify({ employee_ids: who.map(e => e.id), body, include_link: document.getElementById('bc-link').checked }) });
+      closeModal();
+      alert('Sent to ' + r.sent + (r.sent === 1 ? ' person.' : ' people.') + (r.failed.length ? "\nDidn't send to: " + r.failed.join(', ') + '.' : ''));
+    } finally {
+      btn.disabled = false;
+      bcUpdate();
+    }
+  });
+  document.querySelector('.modal').classList.add('wide');
+  bcUpdate();
+  document.getElementById('bc-body').focus();
+}
+
+async function bcTest() {
+  const status = document.getElementById('bc-status');
+  status.textContent = 'Sending…';
+  status.classList.remove('error');
+  try {
+    await api('/api/broadcast/test', { method: 'POST', body: JSON.stringify({ body: document.getElementById('bc-body').value, include_link: document.getElementById('bc-link').checked }) });
+    status.textContent = 'Test sent to your phone';
+  } catch (e) {
+    if (e.message !== 'unauthorized') { status.textContent = e.message; status.classList.add('error'); }
+  }
+}
+
 async function sendWelcomeText(id) {
   const emp = employeesCache.find(e => e.id === id);
   if (!confirm(`Text the welcome message to ${emp.name} now?`)) return;

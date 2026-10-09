@@ -341,6 +341,14 @@ textarea { min-height: 72px; resize: vertical; }
 .switch input:checked + .switch-track::after { transform: translateX(16px); }
 .switch input:focus-visible + .switch-track { outline: 2px solid var(--red); outline-offset: 2px; }
 
+/* Send a message */
+.bc-modes { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.875rem; }
+.bc-modes label, .bc-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; }
+.bc-modes input, .bc-check input, .bc-list input { width: auto; accent-color: var(--red); }
+.bc-list { margin-top: 8px; max-height: 190px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 4px 12px; font-size: 0.875rem; }
+.bc-list label { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; }
+.bc-check { font-size: 0.875rem; }
+
 /* Month-end prompt */
 .month-banner {
   display: flex;

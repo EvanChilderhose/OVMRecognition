@@ -1,0 +1,42 @@
+/* Fonts: Adobe Fonts web project (Elza + Neue Haas Grotesk) and Google Fonts (Bevan) */
+@import url("https://use.typekit.net/nlm6shf.css");
+@import url("https://fonts.googleapis.com/css2?family=Bevan&display=swap");
+
+/* App fonts — shared by the dashboard (index.html) and employee profiles (me.html).
+ *
+ * Headings: Bevan (trying it instead of Elza — to go back, swap the two
+ * --font-heading lines below). Body text: Neue Haas Grotesk Text.
+ * If a font ever fails to load, the device's system font is used instead.
+ *
+ * To switch back to the original system font everywhere, delete the two
+ * <link rel="stylesheet" href="/fonts.css"> lines (index.html and me.html),
+ * or empty this file.
+ */
+:root {
+  --font-heading: "Bevan", Georgia, serif;
+  /* --font-heading: "elza", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; */
+  --font-body: "neue-haas-grotesk-text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+body { font-family: var(--font-body); font-weight: 400; }
+
+/* Headings and names. Bevan has a single (already heavy) weight,
+   so don't let the browser fake a bolder one. */
+h1, h2, h3, h4,
+.brand-name,
+.month-banner-text strong,
+.top-hello,
+.reward-name {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
+}
+
+/* Numbers (points, costs, dates, counts), buttons, tabs and names in tables:
+   the body font, in bold — no numbers in Bevan */
+.balance-value, .fact-value, .reward-cost strong, .h-pts, .earn-list .pts,
+.btn, .tab, button, .tab-btn, td.strong, td strong {
+  font-family: var(--font-body);
+  font-weight: 700;
+}
