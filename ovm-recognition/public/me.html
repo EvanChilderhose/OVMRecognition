@@ -6,8 +6,8 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#8c1c13">
-<title>My Awards — Ottawa Valley Meats</title>
-<!-- Link preview in texts (the same for everyone — no names or points). %APP_URL% is filled in by routes/profile.js -->
+<title>My Awards | Ottawa Valley Meats</title>
+<!-- Link preview in texts (the same for everyone: no names or points). %APP_URL% is filled in by routes/profile.js -->
 <meta name="description" content="See your points, rewards and awards at Ottawa Valley Meats.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Ottawa Valley Meats">
@@ -16,7 +16,7 @@
 <meta property="og:image" content="%APP_URL%/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Ottawa Valley Meats — Your Awards Profile">
+<meta property="og:image:alt" content="Ottawa Valley Meats: Your Awards Profile">
 <meta name="twitter:card" content="summary_large_image">
 <!-- Saving the profile to the home screen. %MANIFEST% is this profile's own app details (routes/profile.js) -->
 <link rel="manifest" href="%MANIFEST%">
@@ -50,9 +50,9 @@
 
   <!-- About -->
   <section class="facts" aria-label="About you">
-    <div class="fact"><span class="fact-value" id="f-shifts">—</span><span class="fact-label">Shifts completed<span class="fact-since" id="f-shifts-since"></span></span></div>
-    <div class="fact"><span class="fact-value" id="f-start">—</span><span class="fact-label" id="f-start-label">With OVM since</span></div>
-    <div class="fact"><span class="fact-value" id="f-bday">—</span><span class="fact-label">Birthday</span></div>
+    <div class="fact"><span class="fact-value" id="f-shifts">0</span><span class="fact-label">Shifts completed<span class="fact-since" id="f-shifts-since"></span></span></div>
+    <div class="fact"><span class="fact-value" id="f-start">Not set</span><span class="fact-label" id="f-start-label">With OVM since</span></div>
+    <div class="fact"><span class="fact-value" id="f-bday">Not set</span><span class="fact-label">Birthday</span></div>
   </section>
 
   <!-- Tabs -->
@@ -107,10 +107,10 @@
         <p>It'll open like an app, straight to your points.</p>
       </div>
     </div>
-    <p class="save-optional">Totally optional — every award and reward update is texted to you anyway.</p>
+    <p class="save-optional">Totally optional. Every award and reward update is texted to you anyway.</p>
 
     <div id="save-installed" class="save-block hidden">
-      <p class="save-done">You're all set — you're using it from your home screen now.</p>
+      <p class="save-done">You're all set. You're using it from your home screen now.</p>
     </div>
 
     <div id="save-android" class="save-block hidden">
@@ -119,16 +119,16 @@
       <ol class="save-steps" id="save-android-steps">
         <li><span class="step-icon dots" aria-hidden="true">⋮</span><span>Tap the <strong>three dots</strong> at the top right of Chrome</span></li>
         <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8.5v6M9 11.5h6"/></svg></span><span>Tap <strong>Add to Home screen</strong> (or <strong>Install app</strong>)</span></li>
-        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Tap <strong>Add</strong> — the OVM icon appears on your home screen</span></li>
+        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Tap <strong>Add</strong> and the OVM icon appears on your home screen</span></li>
       </ol>
     </div>
 
     <div id="save-ios" class="save-block hidden">
       <h3 class="save-os">iPhone</h3>
       <ol class="save-steps">
-        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M7 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/></svg></span><span>Tap the <strong>Share</strong> button — at the bottom of Safari</span></li>
+        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M7 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/></svg></span><span>Tap the <strong>Share</strong> button at the bottom of Safari</span></li>
         <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg></span><span>Scroll down and tap <strong>Add to Home Screen</strong></span></li>
-        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Tap <strong>Add</strong> — the OVM icon appears on your home screen</span></li>
+        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Tap <strong>Add</strong> and the OVM icon appears on your home screen</span></li>
       </ol>
       <p class="save-tip">Don't see the Share button? If this opened inside another app, tap <strong>Open in Safari</strong> (or the compass icon) first.</p>
     </div>

@@ -18,7 +18,7 @@ function fmtLong(iso) {
   return dateFromParts(y, m, d).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function fmtMonthDay(md) {
-  if (!md) return '—';
+  if (!md) return 'Not set';
   const [m, d] = md.split('-').map(Number);
   return dateFromParts(2000, m, d).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 }
@@ -66,7 +66,7 @@ function showGone(message) {
 
 function render() {
   const e = data.employee;
-  document.title = `${e.first_name}'s Awards — Ottawa Valley Meats`;
+  document.title = `${e.first_name}'s Awards | Ottawa Valley Meats`;
   $('hello').textContent = `Hi ${e.first_name}!`;
   $('main').setAttribute('aria-busy', 'false');
 
@@ -96,7 +96,7 @@ function render() {
   // Facts
   $('f-shifts').textContent = num(e.shifts_completed);
   $('f-shifts-since').textContent = e.shifts_since ? `since ${fmtOrdinal(e.shifts_since)}` : '';
-  $('f-start').textContent = e.start_date ? tenure(e.start_date) : '—';
+  $('f-start').textContent = e.start_date ? tenure(e.start_date) : 'Not set';
   $('f-start-label').textContent = e.start_date ? `Since ${fmtLong(e.start_date)}` : 'With OVM since';
   $('f-bday').textContent = fmtMonthDay(e.birthday);
 
@@ -162,7 +162,7 @@ function renderHistory() {
     const when = fmtWhen(h.resolved_at || h.created_at);
     if (h.type === 'redemption') {
       const chip = h.status === 'pending' ? '<span class="chip pending">Waiting on a manager</span>'
-        : h.status === 'denied' ? '<span class="chip denied">Declined — points returned</span>'
+        : h.status === 'denied' ? '<span class="chip denied">Declined, points returned</span>'
         : '<span class="chip done">Approved</span>';
       return `<li><div class="h-main"><div class="h-reason">${esc(h.reason)}</div><div class="h-meta">${when} ${chip}</div></div>
         <div class="h-pts ${h.status === 'denied' ? 'void' : 'minus'}">−${num(Math.abs(h.points))}</div></li>`;
