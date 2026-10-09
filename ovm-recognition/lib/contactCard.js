@@ -29,7 +29,9 @@ function vcard() {
   const number = textingNumber();
   if (!number) return null;
   if (photo === null) {
-    try { photo = fs.readFileSync(path.join(__dirname, '..', 'public', 'icon-180.png')).toString('base64'); }
+    // A square JPEG, 512px: the format iPhones use for their own contact photos.
+    // (They can show a PNG while adding the contact but drop it once saved.)
+    try { photo = fs.readFileSync(path.join(__dirname, '..', 'public', 'contact-photo.jpg')).toString('base64'); }
     catch (err) { photo = ''; }
   }
   const lines = [
@@ -40,7 +42,7 @@ function vcard() {
     'ORG:Ottawa Valley Meats',
     `TEL;TYPE=CELL,VOICE:${number}`,
     'NOTE:Ottawa Valley Meats employee rewards. Text POINTS to check your balance.',
-    photo ? `PHOTO;ENCODING=b;TYPE=PNG:${photo}` : null,
+    photo ? `PHOTO;ENCODING=b;TYPE=JPEG:${photo}` : null,
     'END:VCARD'
   ].filter(Boolean);
   return lines.map(fold).join('\r\n') + '\r\n';
