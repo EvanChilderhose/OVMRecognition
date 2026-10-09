@@ -50,6 +50,9 @@ sections in order.
      texts it at 10 AM on the last day of each month as a reminder to pick
      Employee of the Month and run the monthly awards. Leave it out to turn
      the reminder off.
+   - `TEXTING_NUMBER` — the GoHighLevel number employees get texts from
+     (e.g. `613-555-1234`). Used for the "save our number as OVM Rewards"
+     contact card in the welcome text, on profiles, and when they text CONTACT.
    - `APP_URL` — your Render address, e.g. `https://ovm-recognition.onrender.com`.
      Used to build each employee's "View your awards profile" link in texts.
      Optional on Render (it fills this in automatically), but set it if you

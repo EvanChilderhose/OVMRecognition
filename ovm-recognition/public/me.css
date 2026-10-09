@@ -247,6 +247,20 @@ main { max-width: 560px; margin: -48px auto 0; padding: 0 16px 32px; }
 .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
 @keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+/* ---------- Save our number ---------- */
+.foot-actions { margin-top: 26px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.foot-actions .foot { margin-top: 0; }
+.contact-btn {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--ink); text-decoration: none;
+}
+.contact-btn img { width: 40px; height: 40px; border-radius: 10px; flex: none; }
+.contact-btn > span { display: flex; flex-direction: column; font-size: 0.95rem; }
+.contact-btn > span span { color: var(--muted); font-size: 0.8rem; }
+.contact-btn::after { content: "›"; margin-left: auto; color: var(--muted); font-size: 1.4rem; line-height: 1; }
+
 /* ---------- Save to your phone ---------- */
 .link-btn { background: none; border: none; padding: 6px 4px; color: var(--red); font-weight: 600; font-size: 0.85rem; text-decoration: underline; text-underline-offset: 3px; }
 .save-sheet { max-height: calc(100vh - 24px); overflow-y: auto; }

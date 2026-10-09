@@ -15,6 +15,16 @@ const { requestReward } = require('../lib/redeem');
 
 const TOKEN = /^[A-Za-z0-9_-]{8,64}$/;
 
+// "Save our number" contact card (lib/contactCard.js)
+const contactCard = require('../lib/contactCard');
+router.get('/contact.vcf', (req, res) => {
+  const card = contactCard.vcard();
+  if (!card) return res.status(404).type('text').send('The texting number isn\'t set up yet.');
+  res.set('Content-Type', 'text/vcard; charset=utf-8');
+  res.set('Content-Disposition', 'inline; filename="OVM-Rewards.vcf"'); // file name must be plain letters; the contact name inside has the emoji
+  res.send(card);
+});
+
 // Shift counts start from the first day of Wagepoint data used by the program
 const SHIFTS_COUNTED_FROM = process.env.SHIFTS_COUNTED_FROM || '2026-07-14';
 
@@ -96,6 +106,7 @@ router.get('/profile-api/:token', wrap(async (req, res) => {
       start_date: emp.start_date,
       shifts_completed: emp.shifts_completed,
       shifts_since: SHIFTS_COUNTED_FROM,
+      contact_card: contactCard.contactCardUrl() ? '/contact.vcf' : null,
       current_points: emp.current_points,
       lifetime_points: emp.lifetime_points
     },

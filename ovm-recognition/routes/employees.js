@@ -5,6 +5,7 @@ const { wrap, httpError } = require('../lib/http');
 const { normalizePhone } = require('../lib/phone');
 const { newProfileToken } = require('../lib/profile');
 const { sendTemplate } = require('../lib/messages');
+const { contactCardUrl } = require('../lib/contactCard');
 
 // Validates and cleans up the fields shared by add + edit
 function readEmployee(body) {
@@ -35,6 +36,8 @@ async function sendWelcome(employee, force) {
   if (!employee || !employee.phone || employee.status === 'Inactive') return false;
   const sent = await sendTemplate('welcome', {}, { employee }, { force });
   if (!sent) return false;
+  // Then, as its own text, the "save our number as OVM REWARDS" contact card
+  if (contactCardUrl()) await sendTemplate('contact_card', {}, { employee }); // follows its own on/off switch
   await pool.query('UPDATE employees SET welcomed_at = now() WHERE id = $1', [employee.id]);
   return true;
 }

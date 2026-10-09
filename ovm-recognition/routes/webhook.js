@@ -82,6 +82,11 @@ router.post('/ghl-sms', async (req, res) => {
       return;
     }
 
+    if ((upper === 'CONTACT' || upper === 'SAVE') && require('../lib/contactCard').contactCardUrl()) {
+      await sendTemplate('contact_card', {}, to);
+      return;
+    }
+
     await sendTemplate('help', {}, to);
   } catch (err) {
     console.error('Webhook error:', err);

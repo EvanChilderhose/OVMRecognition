@@ -99,6 +99,7 @@ function render() {
   $('f-start').textContent = e.start_date ? tenure(e.start_date) : 'Not set';
   $('f-start-label').textContent = e.start_date ? `Since ${fmtLong(e.start_date)}` : 'With OVM since';
   $('f-bday').textContent = fmtMonthDay(e.birthday);
+  $('contact-btn').classList.toggle('hidden', !e.contact_card);
 
   renderRewards();
   renderEarn();

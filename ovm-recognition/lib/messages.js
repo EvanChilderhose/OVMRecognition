@@ -11,6 +11,7 @@ const pool = require('../db/pool');
 const { sendSMS } = require('./ghl');
 const { profileUrl, ensureProfileToken, appUrl } = require('./profile');
 const { normalizePhone } = require('./phone');
+const { contactCardUrl, CONTACT_NAME } = require('./contactCard');
 
 // Shown in the dashboard in this order. `sample` fills the placeholders for
 // previews and test texts. `toEmployee: false` texts don't get the profile link.
@@ -19,6 +20,11 @@ const TEXTS = [
     when: 'Automatically when you add an employee with a phone number (while this is switched on), or when you click Send welcome text. Starts switched off so nobody is texted while you set up. Switch it on at launch.',
     body: 'Welcome to the Ottawa Valley Meats Employee Recognition program, {first_name}! You earn points for great attendance, your birthday, work anniversaries, shift milestones and going above and beyond. Save your points for rewards like OVM gear, meat and days off. Your profile shows your points, the rewards and how to earn more.\n\n{save_link}',
     sample: { save_link: 'If you want to save your profile as an app on your phone, tap here: https://ovmrecognition.onrender.com/me/abc123#save No need to, though. All notifications and updates will be texted to you.' } },
+
+  { key: 'contact_card', group: 'Welcome', label: 'Save our number (contact card)', toEmployee: false,
+    when: 'Sent as its own text right after the welcome text, and whenever an employee texts CONTACT (or SAVE). Needs TEXTING_NUMBER set in Render.',
+    body: '📇 Tap here to save this number in your contacts as OVM REWARDS 🥩: {contact_url}',
+    sample: { contact_url: 'https://ovmrecognition.onrender.com/contact.vcf' } },
 
   { key: 'award_approved', group: 'Awards', label: 'Award approved',
     when: 'When you approve an award in Pending Approvals (monthly awards, birthdays, anniversaries, nominations, milestones).',
@@ -48,7 +54,7 @@ const TEXTS = [
     sample: { balance: 300, lifetime: 450 } },
   { key: 'help', group: 'Replies to employee texts', label: 'Help',
     when: 'When an employee texts anything the app doesn\'t recognize.',
-    body: 'Hi {first_name}! Text POINTS to check your balance, or REDEEM followed by a reward name (e.g. "REDEEM $100 Meat").',
+    body: 'Hi {first_name}! Text POINTS to check your balance, REDEEM followed by a reward name (e.g. "REDEEM $100 Meat"), or CONTACT to save our number.',
     sample: {} },
   { key: 'redeem_how', group: 'Replies to employee texts', label: 'How to redeem',
     when: 'When an employee texts REDEEM without a reward name.',
@@ -112,7 +118,11 @@ function render(body, vars = {}, employee = null, footer = null) {
   if (link && all.save_link === undefined) {
     all.save_link = `If you want to save your profile as an app on your phone, tap here: ${link}#save No need to, though. All notifications and updates will be texted to you.`;
   }
-  let text = fill(body, all);
+  // {contact_link} / {contact_url}: the "save our number" contact card (empty if TEXTING_NUMBER isn't set)
+  const card = contactCardUrl();
+  if (all.contact_url === undefined) all.contact_url = card || '';
+  if (all.contact_link === undefined) all.contact_link = card ? `📇 Save our number in your contacts as ${CONTACT_NAME}: ${card}` : '';
+  let text = fill(body, all).replace(/\n{3,}/g, '\n\n').trim();
   if (link && footer) text += '\n\n' + fill(footer, { profile_link: link });
   return text;
 }
