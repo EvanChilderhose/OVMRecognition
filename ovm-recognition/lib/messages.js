@@ -14,6 +14,11 @@ const { profileUrl, ensureProfileToken } = require('./profile');
 // Shown in the dashboard in this order. `sample` fills the placeholders for
 // previews and test texts. `toEmployee: false` texts don't get the profile link.
 const TEXTS = [
+  { key: 'welcome', group: 'Welcome', label: 'Welcome to the program', defaultEnabled: false,
+    when: 'Automatically when you add an employee with a phone number (while this is switched on), or when you click Send welcome text. Starts switched off so nobody is texted while you set up — switch it on at launch.',
+    body: 'Welcome to the Ottawa Valley Meats Employee Recognition program, {first_name}! You earn points for great attendance, your birthday, work anniversaries, shift milestones and going above and beyond. Save your points for rewards like OVM gear, meat and days off. Your profile shows your points, the rewards and how to earn more.',
+    sample: {} },
+
   { key: 'award_approved', group: 'Awards', label: 'Award approved',
     when: 'When you approve an award in Pending Approvals (monthly awards, birthdays, anniversaries, nominations, milestones).',
     body: 'Congrats {first_name}! You earned {points} points for {reason}. You now have {balance} points.',
@@ -80,7 +85,7 @@ async function getTemplate(key) {
   const def = BY_KEY[key];
   if (!def) throw new Error(`Unknown message template "${key}"`);
   const row = (await pool.query('SELECT body, enabled FROM message_templates WHERE key = $1', [key])).rows[0];
-  return { body: (row && row.body) || def.body, enabled: row ? row.enabled !== false : true };
+  return { body: (row && row.body) || def.body, enabled: row ? row.enabled !== false : def.defaultEnabled !== false };
 }
 
 function fill(template, vars) {
@@ -103,16 +108,18 @@ function render(body, vars = {}, employee = null, footer = null) {
 }
 
 // Sends a text and records it in sms_log. Never throws — a failed text
-// shouldn't undo an approval or a redemption. Switched-off texts are skipped.
+// shouldn't undo an approval or a redemption. Switched-off texts are skipped
+// unless options.force is set (e.g. a manager clicking "Send welcome text").
+// Returns the text that was sent, or null if nothing was sent.
 // target: { employee } for a known employee, or { phone, name, contactId } otherwise.
-async function sendTemplate(key, vars, target) {
+async function sendTemplate(key, vars, target, options = {}) {
   const phone = target.employee ? target.employee.phone : target.phone;
   if (!phone || !process.env.GHL_API_KEY) return null;
   let employee = target.employee || null;
   let message = null;
   try {
     const template = await getTemplate(key);
-    if (!template.enabled) return null;
+    if (!template.enabled && !options.force) return null;
     let footer = null;
     if (employee && BY_KEY[key].toEmployee !== false) {
       employee = await ensureProfileToken(employee); // first text creates their profile link
@@ -127,6 +134,7 @@ async function sendTemplate(key, vars, target) {
     );
   } catch (err) {
     console.error(`Failed to send "${key}" text:`, err.message);
+    return null;
   }
   return message;
 }

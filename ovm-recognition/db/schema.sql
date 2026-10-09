@@ -64,6 +64,10 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_token TEXT UNIQUE;
 ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS period TEXT;
 -- Whether employees see this rule in the "Earn points" list on their profile
 ALTER TABLE recognition_rules ADD COLUMN IF NOT EXISTS show_on_profile BOOLEAN DEFAULT true;
+-- A short line shown under the rule on employee profiles (e.g. who's eligible)
+ALTER TABLE recognition_rules ADD COLUMN IF NOT EXISTS note TEXT;
+-- When the employee was sent the welcome text (empty = not yet)
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS welcomed_at TIMESTAMPTZ;
 
 -- Shifts worked per employee per month, from the monthly import. An employee's
 -- shifts_completed is the total of these, so re-importing a month never double-counts.

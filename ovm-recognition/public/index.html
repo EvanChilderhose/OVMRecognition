@@ -57,7 +57,10 @@
           <h2>Employees</h2>
           <p class="panel-sub">Staff, their phone numbers for texts, and point balances.</p>
         </div>
-        <button onclick="openEmployeeForm()">Add Employee</button>
+        <div class="header-actions">
+          <button class="secondary hidden" id="welcome-all-btn" onclick="welcomeAll()">Send welcome texts</button>
+          <button onclick="openEmployeeForm()">Add Employee</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table id="employees-table">

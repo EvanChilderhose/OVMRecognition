@@ -318,6 +318,10 @@ async function openEmployeeOfMonthForm() {
 // ---------- Employees ----------
 async function loadEmployees() {
   employeesCache = await api('/api/employees');
+  const toWelcome = employeesCache.filter(e => e.status !== 'Inactive' && e.phone && !e.welcomed_at).length;
+  const wbtn = document.getElementById('welcome-all-btn');
+  wbtn.textContent = `Send welcome texts (${toWelcome})`;
+  wbtn.classList.toggle('hidden', !toWelcome);
   const tbody = document.querySelector('#employees-table tbody');
   tbody.innerHTML = employeesCache.map(e => `
     <tr>
@@ -364,6 +368,12 @@ function openEmployeeForm(id) {
       <p class="hint-text">No link yet — one is created automatically with their first text.</p>
       <button type="button" class="secondary create-link" onclick="createProfileLink(${emp.id})">Create profile link now</button>
     </div>` : ''}
+    ${id ? `
+    <div class="field profile-link">
+      <label>Welcome text</label>
+      <p class="hint-text" id="welcome-status">${emp.welcomed_at ? `Sent ${esc(fmtDateTime(emp.welcomed_at))}` : 'Not sent yet'}</p>
+      ${emp.phone ? `<button type="button" class="secondary create-link" onclick="sendWelcomeText(${emp.id})">${emp.welcomed_at ? 'Resend welcome text' : 'Send welcome text'}</button>` : '<p class="hint-text">Add a phone number to send it.</p>'}
+    </div>` : ''}
   `, async () => {
     const payload = {
       name: val('f-name'), phone: val('f-phone'), department: val('f-department'),
@@ -395,6 +405,30 @@ async function resetProfileLink(id) {
     if (i >= 0) employeesCache[i] = emp;
     document.getElementById('f-profile').value = profileLink(emp);
     document.querySelector('.link-row a').href = profileLink(emp);
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+  }
+}
+
+async function sendWelcomeText(id) {
+  const emp = employeesCache.find(e => e.id === id);
+  if (!confirm(`Text the welcome message to ${emp.name} now?`)) return;
+  try {
+    await api(`/api/employees/${id}/welcome`, { method: 'POST' });
+    document.getElementById('welcome-status').textContent = 'Sent just now';
+    loadEmployees();
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+  }
+}
+
+async function welcomeAll() {
+  const todo = employeesCache.filter(e => e.status !== 'Inactive' && e.phone && !e.welcomed_at);
+  if (!confirm(`Text the welcome message to ${todo.length} employee(s) who haven't had it yet?\n\n${todo.map(e => e.name).join(', ')}\n\nTip: also switch the welcome text on (Texts tab) so new hires get it automatically.`)) return;
+  try {
+    const r = await api('/api/employees/welcome-all', { method: 'POST' });
+    alert(`Sent ${r.sent} welcome text(s).` + (r.failed.length ? `\nDidn't send to: ${r.failed.join(', ')} (check texting is set up).` : ''));
+    loadEmployees();
   } catch (e) {
     if (e.message !== 'unauthorized') alert(e.message);
   }
@@ -612,7 +646,7 @@ async function loadRules() {
   const tbody = document.querySelector('#rules-table tbody');
   tbody.innerHTML = rulesCache.map(r => `
     <tr>
-      <td class="strong">${esc(r.event)}</td>
+      <td class="strong">${esc(r.event)}${r.note ? `<span class="sub-line">${esc(r.note)}</span>` : ''}</td>
       <td class="num strong">${fmtNum(r.points)}</td>
       <td class="num">${fmtMoney(r.dollar_value)}</td>
       <td>${r.show_on_profile !== false ? '<span class="tag ok">Shown</span>' : '<span class="tag off">Hidden</span>'}</td>
@@ -629,8 +663,9 @@ function openRuleForm(id) {
       ${field('f-rdollar', 'Dollar Value', `<input id="f-rdollar" type="number" value="${esc(r.dollar_value)}">`)}
     </div>
     ${field('f-rshow', 'Show on employee profiles', `<select id="f-rshow"><option value="true" ${r.show_on_profile !== false ? 'selected' : ''}>Yes — listed under "Earn points"</option><option value="false" ${r.show_on_profile === false ? 'selected' : ''}>No — hidden (not running this award yet)</option></select>`)}
+    ${field('f-rnote', 'Note for employees <span class="hint">(optional — shown under this award on their profile)</span>', `<input id="f-rnote" value="${esc(r.note)}" placeholder="e.g. Must work 4+ shifts per week to be eligible">`)}
   `, async () => {
-    const payload = { event: val('f-event'), points: Number(val('f-rpoints')), dollar_value: Number(val('f-rdollar')) || null, show_on_profile: val('f-rshow') === 'true' };
+    const payload = { event: val('f-event'), note: val('f-rnote'), points: Number(val('f-rpoints')), dollar_value: Number(val('f-rdollar')) || null, show_on_profile: val('f-rshow') === 'true' };
     if (id) await api(`/api/recognition-rules/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
     else await api('/api/recognition-rules', { method: 'POST', body: JSON.stringify(payload) });
     closeModal();

@@ -18,7 +18,7 @@ router.get('/', wrap(async (req, res) => {
     return {
       key: t.key, group: t.group, label: t.label, when: t.when,
       body, default_body: t.body, customized: !!(row && row.body && row.body !== t.body),
-      enabled: row ? row.enabled !== false : true,
+      enabled: row ? row.enabled !== false : t.defaultEnabled !== false,
       placeholders: placeholdersOf(t.body), // the ones this text can use
       footer: !!t.footer, to_employee: t.toEmployee !== false && !t.footer,
       sample: t.sample

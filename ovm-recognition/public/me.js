@@ -142,7 +142,7 @@ function renderEarn() {
     else if (/Month|Monthly|Least Shifts|Most Shifts|Least Lates|Most Early/i.test(r.event)) groups['Every month'].push(r);
     else groups['Recognized by a manager'].push(r);
   }
-  const list = rows => `<ul class="earn-list">${rows.map(r => `<li><span>${esc(r.event)}</span><span class="pts">${num(r.points)} pts</span></li>`).join('')}</ul>`;
+  const list = rows => `<ul class="earn-list">${rows.map(r => `<li><span>${esc(r.event)}${r.note ? `<span class="earn-note-line">${esc(r.note)}</span>` : ''}</span><span class="pts">${num(r.points)} pts</span></li>`).join('')}</ul>`;
   let html = '';
   if (groups.Birthday.length) html += `<div class="earn-group"><h3>Birthday</h3>${list(groups.Birthday)}</div>`;
   if (anniversaries.length) {

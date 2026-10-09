@@ -156,6 +156,13 @@ async function seedIfEmpty() {
     });
   }
 
+  await once('full-time-award-notes', async () => {
+    await pool.query(
+      `UPDATE recognition_rules SET note = $1 WHERE event = ANY($2) AND note IS NULL`,
+      ['Must work 4+ shifts per week to be eligible', ['Best Monthly Attendance', 'Least Lates', 'Most Early']]
+    );
+  });
+
   await once('hide-unused-rules-2026-10', async () => {
     const hidden = await pool.query(
       'UPDATE recognition_rules SET show_on_profile = false WHERE event = ANY($1)',
