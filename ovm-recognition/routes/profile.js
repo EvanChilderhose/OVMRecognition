@@ -40,8 +40,33 @@ const PAGE = fs.readFileSync(path.join(__dirname, '..', 'public', 'me.html'), 'u
 router.get('/me/:token', (req, res) => {
   privateHeaders(res);
   const base = appUrl() || `https://${req.get('host')}`;
-  res.type('html').send(PAGE.replace(/%APP_URL%/g, base));
+  // Each profile gets its own app details, so "Add to home screen" opens *their* profile
+  const manifest = TOKEN.test(req.params.token) ? `/me/${req.params.token}/manifest.webmanifest` : '';
+  res.type('html').send(PAGE.replace(/%APP_URL%/g, base).replace(/%MANIFEST%/g, manifest));
 });
+
+// App details for saving a profile to the home screen (used by Android's one-tap install)
+router.get('/me/:token/manifest.webmanifest', wrap(async (req, res) => {
+  privateHeaders(res);
+  const emp = await employeeForToken(req.params.token);
+  if (!emp) return res.status(404).end();
+  const home = `/me/${req.params.token}`;
+  res.type('application/manifest+json').send(JSON.stringify({
+    name: 'My OVM Awards',
+    short_name: 'OVM Awards',
+    start_url: home,
+    scope: home,
+    id: home,
+    display: 'standalone',
+    background_color: '#faf6f0',
+    theme_color: '#8c1c13',
+    icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+    ]
+  }));
+}));
 
 router.get('/profile-api/:token', wrap(async (req, res) => {
   privateHeaders(res);

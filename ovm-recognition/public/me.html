@@ -18,6 +18,11 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Ottawa Valley Meats — Your Awards Profile">
 <meta name="twitter:card" content="summary_large_image">
+<!-- Saving the profile to the home screen. %MANIFEST% is this profile's own app details (routes/profile.js) -->
+<link rel="manifest" href="%MANIFEST%">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="/icon-180.png">
 <meta name="apple-mobile-web-app-title" content="My OVM Awards">
 <link rel="icon" href="/icon-192.png">
@@ -70,6 +75,7 @@
   </section>
 
   <p class="foot">You can also text <strong>POINTS</strong> anytime to check your balance.<br>Questions? Ask your manager.</p>
+  <p class="foot" id="save-foot"><button class="link-btn" id="save-open">Save this page to your phone</button></p>
 </main>
 
 <!-- Shown when the link is wrong or has been reset -->
@@ -88,6 +94,46 @@
       <button class="btn btn-quiet" id="sheet-cancel">Cancel</button>
       <button class="btn" id="sheet-confirm">Request</button>
     </div>
+  </div>
+</div>
+
+<!-- How to save the profile to the home screen. Opens from the welcome text (#save) or the link above. -->
+<div class="sheet-backdrop hidden" id="save-backdrop">
+  <div class="sheet save-sheet" role="dialog" aria-modal="true" aria-labelledby="save-title">
+    <div class="save-head">
+      <img src="/icon-180.png" alt="" class="save-icon">
+      <div>
+        <h2 id="save-title">Save your profile to your phone</h2>
+        <p>It'll open like an app, straight to your points.</p>
+      </div>
+    </div>
+    <p class="save-optional">Totally optional — every award and reward update is texted to you anyway.</p>
+
+    <div id="save-installed" class="save-block hidden">
+      <p class="save-done">You're all set — you're using it from your home screen now.</p>
+    </div>
+
+    <div id="save-android" class="save-block hidden">
+      <h3 class="save-os">Android</h3>
+      <button class="btn" id="save-install">Add to home screen</button>
+      <ol class="save-steps" id="save-android-steps">
+        <li><span class="step-icon dots" aria-hidden="true">⋮</span><span>Tap the <strong>three dots</strong> at the top right of Chrome</span></li>
+        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8.5v6M9 11.5h6"/></svg></span><span>Tap <strong>Add to Home screen</strong> (or <strong>Install app</strong>)</span></li>
+        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Tap <strong>Add</strong> — the OVM icon appears on your home screen</span></li>
+      </ol>
+    </div>
+
+    <div id="save-ios" class="save-block hidden">
+      <h3 class="save-os">iPhone</h3>
+      <ol class="save-steps">
+        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M7 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/></svg></span><span>Tap the <strong>Share</strong> button — at the bottom of Safari</span></li>
+        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg></span><span>Scroll down and tap <strong>Add to Home Screen</strong></span></li>
+        <li><span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Tap <strong>Add</strong> — the OVM icon appears on your home screen</span></li>
+      </ol>
+      <p class="save-tip">Don't see the Share button? If this opened inside another app, tap <strong>Open in Safari</strong> (or the compass icon) first.</p>
+    </div>
+
+    <button class="btn btn-quiet save-close" id="save-close">Done</button>
   </div>
 </div>
 

@@ -202,7 +202,11 @@ $('rewards').addEventListener('click', e => {
 function closeSheet() { $('sheet-backdrop').classList.add('hidden'); pendingReward = null; }
 $('sheet-cancel').addEventListener('click', closeSheet);
 $('sheet-backdrop').addEventListener('click', e => { if (e.target === $('sheet-backdrop')) closeSheet(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('sheet-backdrop').classList.contains('hidden')) closeSheet(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('sheet-backdrop').classList.contains('hidden')) closeSheet();
+  if (!$('save-backdrop').classList.contains('hidden')) closeSave();
+});
 
 $('sheet-confirm').addEventListener('click', async () => {
   if (!pendingReward) return;
@@ -227,6 +231,57 @@ $('sheet-confirm').addEventListener('click', async () => {
     btn.textContent = 'Try again';
   }
 });
+
+// ---------- Save to your phone ----------
+const ua = navigator.userAgent;
+const isAndroid = /Android/.test(ua);
+// iPads report themselves as Macs, so a "Mac" with a touch screen is an iPad
+const isIOS = /iPhone|iPad|iPod/.test(ua) || (!isAndroid && navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isSaved = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let installPrompt = null;
+
+// Chrome on Android offers a one-tap install; keep it for the button
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  installPrompt = e;
+  updateSaveSheet();
+});
+window.addEventListener('appinstalled', () => { installPrompt = null; closeSave(); toast('Saved! Look for the OVM icon on your home screen.'); });
+
+function updateSaveSheet() {
+  $('save-installed').classList.toggle('hidden', !isSaved);
+  // Unknown phone (or a computer): show both sets of steps
+  $('save-ios').classList.toggle('hidden', isSaved || (isAndroid && !isIOS));
+  $('save-android').classList.toggle('hidden', isSaved || (isIOS && !isAndroid));
+  $('save-install').classList.toggle('hidden', !installPrompt);
+  $('save-android-steps').classList.toggle('hidden', !!installPrompt);
+}
+
+function openSave() {
+  updateSaveSheet();
+  $('save-backdrop').classList.remove('hidden');
+  $('save-close').focus();
+}
+function closeSave() { $('save-backdrop').classList.add('hidden'); }
+
+$('save-open').addEventListener('click', openSave);
+$('save-close').addEventListener('click', closeSave);
+$('save-backdrop').addEventListener('click', e => { if (e.target === $('save-backdrop')) closeSave(); });
+$('save-install').addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  updateSaveSheet();
+});
+if (isSaved) $('save-foot').classList.add('hidden');
+
+// The welcome text links to <profile>#save. Open the steps, then drop "#save" from the
+// address so the saved home-screen icon opens the plain profile.
+if (location.hash === '#save') {
+  history.replaceState(null, '', location.pathname);
+  if (!isSaved) openSave();
+}
 
 let toastTimer;
 function toast(msg) {

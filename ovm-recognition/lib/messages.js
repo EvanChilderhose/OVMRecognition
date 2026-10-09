@@ -17,8 +17,8 @@ const { normalizePhone } = require('./phone');
 const TEXTS = [
   { key: 'welcome', group: 'Welcome', label: 'Welcome to the program', defaultEnabled: false,
     when: 'Automatically when you add an employee with a phone number (while this is switched on), or when you click Send welcome text. Starts switched off so nobody is texted while you set up — switch it on at launch.',
-    body: 'Welcome to the Ottawa Valley Meats Employee Recognition program, {first_name}! You earn points for great attendance, your birthday, work anniversaries, shift milestones and going above and beyond. Save your points for rewards like OVM gear, meat and days off. Your profile shows your points, the rewards and how to earn more.',
-    sample: {} },
+    body: 'Welcome to the Ottawa Valley Meats Employee Recognition program, {first_name}! You earn points for great attendance, your birthday, work anniversaries, shift milestones and going above and beyond. Save your points for rewards like OVM gear, meat and days off. Your profile shows your points, the rewards and how to earn more.\n\nIf you want to save your profile as an app on your phone, tap here: {save_link} No need to, though — all notifications and updates will be texted to you.',
+    sample: { save_link: 'https://ovmrecognition.onrender.com/me/abc123#save' } },
 
   { key: 'award_approved', group: 'Awards', label: 'Award approved',
     when: 'When you approve an award in Pending Approvals (monthly awards, birthdays, anniversaries, nominations, milestones).',
@@ -106,8 +106,9 @@ function render(body, vars = {}, employee = null, footer = null) {
     if (all.balance === undefined) all.balance = employee.current_points;
     if (all.lifetime === undefined) all.lifetime = employee.lifetime_points;
   }
-  let text = fill(body, all);
   const link = profileUrl(employee);
+  if (link && all.save_link === undefined) all.save_link = `${link}#save`; // opens the "save to your phone" steps
+  let text = fill(body, all);
   if (link && footer) text += '\n\n' + fill(footer, { profile_link: link });
   return text;
 }
