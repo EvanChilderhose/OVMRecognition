@@ -22,11 +22,11 @@ router.get('/', wrap(async (req, res) => {
 
 router.post('/', wrap(async (req, res) => {
   validate(req.body);
-  const { event, points, dollar_value } = req.body;
+  const { event, points, dollar_value, show_on_profile } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO recognition_rules (event, points, dollar_value) VALUES ($1, $2, $3) RETURNING *`,
-      [String(event).trim(), points, dollar_value || null]
+      `INSERT INTO recognition_rules (event, points, dollar_value, show_on_profile) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [String(event).trim(), points, dollar_value || null, show_on_profile !== false]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -36,12 +36,12 @@ router.post('/', wrap(async (req, res) => {
 
 router.put('/:id', wrap(async (req, res) => {
   validate(req.body);
-  const { event, points, dollar_value } = req.body;
+  const { event, points, dollar_value, show_on_profile } = req.body;
   let result;
   try {
     result = await pool.query(
-      `UPDATE recognition_rules SET event=$1, points=$2, dollar_value=$3 WHERE id=$4 RETURNING *`,
-      [String(event).trim(), points, dollar_value || null, req.params.id]
+      `UPDATE recognition_rules SET event=$1, points=$2, dollar_value=$3, show_on_profile=$4 WHERE id=$5 RETURNING *`,
+      [String(event).trim(), points, dollar_value || null, show_on_profile !== false, req.params.id]
     );
   } catch (err) {
     throw duplicateEvent(err);

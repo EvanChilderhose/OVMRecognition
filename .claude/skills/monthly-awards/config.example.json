@@ -1,0 +1,18 @@
+{
+  "graceMinutes": 5,
+  "veryLateMinutes": 60,
+  "fullTimeShiftsPerWeek": 4,
+  "holidays": [
+    { "date": "2026-10-12", "name": "Thanksgiving" }
+  ],
+  "notInProgram": ["Manager Name"],
+  "employees": [
+    {
+      "name": "Name as it appears in the dashboard",
+      "wagepointName": "Name exactly as it appears in the Wagepoint export",
+      "firstDay": "2026-08-10",
+      "ignoreJobs": ["Markets"],
+      "schedule": { "Mon": "7:00-15:00", "Tue": "7:00-15:00", "Sat": "8:30-13:00", "Sun": "8:30-13:00" }
+    }
+  ]
+}

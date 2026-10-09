@@ -97,4 +97,19 @@ router.post('/employee-of-the-month', wrap(async (req, res) => {
   });
 }));
 
+// ---------- Monthly results import (see lib/monthlyImport.js) ----------
+const monthlyImport = require('../lib/monthlyImport');
+
+// Step 1: read the file and show what it would do
+router.post('/import/preview', wrap(async (req, res) => {
+  res.json(await monthlyImport.preview(String((req.body && req.body.csv) || '')));
+}));
+
+// Step 2: save it
+router.post('/import', wrap(async (req, res) => {
+  const { period, rows } = req.body || {};
+  if (!Array.isArray(rows)) throw httpError(400, 'Nothing to import.');
+  res.json(await monthlyImport.commit(period, rows));
+}));
+
 module.exports = router;

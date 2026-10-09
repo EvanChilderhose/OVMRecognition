@@ -1,4 +1,10 @@
 node_modules/
 .env
 .DS_Store
-.claude/
+
+# Claude Code: keep project skills (e.g. /monthly-awards), ignore local settings
+.claude/*
+!.claude/skills/
+
+# Monthly awards working files: Wagepoint exports, schedules, results — private, stays on this computer
+monthly-runs/

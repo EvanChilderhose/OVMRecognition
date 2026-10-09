@@ -34,7 +34,8 @@ const RECOGNITION_RULES = [
   ['10000 Orders Picked', 1000, 200],
   ['Perfect Monthly Attendance', 50, 10],
   ['Best Monthly Attendance', 50, 10],
-  ['Most Punctual - Month', 50, 10],
+  ['Least Lates', 50, 10],
+  ['Most Early', 50, 10],
   ['Least Shifts Missed', 50, 10],
   ['Most Shifts Picked Up', 100, 20],
   ['Highest Picking Accuracy - Month', 50, 10],
@@ -51,8 +52,30 @@ const RECOGNITION_RULES = [
 // Rules added after the first release. Each is added to an existing database
 // exactly once — if a manager later renames or edits it, it isn't re-added.
 const RULES_ADDED_LATER = [
-  ['Employee of the Month', 100, 20]
+  ['Employee of the Month', 100, 20],
+  ['Most Early', 50, 10]
 ];
+
+// Rules renamed after the first release (old name -> new name), applied once
+const RULES_RENAMED = [
+  ['Most Punctual - Month', 'Least Lates']
+];
+
+// Rules the program doesn't run yet — hidden from employees' "Earn points" list
+// once at setup. Managers can show them again from Recognition Rules.
+const RULES_HIDDEN_AT_START = [
+  '1000 Orders Picked', '2500 Orders Picked', '5000 Orders Picked', '10000 Orders Picked',
+  'Least Shifts Missed', 'Most Shifts Picked Up', 'Highest Picking Accuracy - Month',
+  'Most Picked/Packed - Month', 'No Error Month'
+];
+
+// Runs fn once per database (tracked in app_setup_done)
+async function once(key, fn) {
+  const done = (await pool.query('SELECT 1 FROM app_setup_done WHERE key = $1', [key])).rows.length > 0;
+  if (done) return;
+  await fn();
+  await pool.query('INSERT INTO app_setup_done (key) VALUES ($1) ON CONFLICT DO NOTHING', [key]);
+}
 
 const REWARDS = [
   ['Day Off (weekday)', 1000, 200, 'Pending approval from the Warehouse Manager, the employee can take a day off', 'Manager schedules the day off after approving redemption'],
@@ -112,17 +135,34 @@ async function seedIfEmpty() {
     }
   }
 
-  for (const [event, points, dollar] of RULES_ADDED_LATER) {
-    const key = `rule:${event}`;
-    const done = (await pool.query('SELECT 1 FROM app_setup_done WHERE key = $1', [key])).rows.length > 0;
-    if (done) continue;
-    const added = await pool.query(
-      'INSERT INTO recognition_rules (event, points, dollar_value) VALUES ($1, $2, $3) ON CONFLICT (event) DO NOTHING',
-      [event, points, dollar]
-    );
-    if (added.rowCount) say(`Added recognition rule "${event}"`);
-    await pool.query('INSERT INTO app_setup_done (key) VALUES ($1) ON CONFLICT DO NOTHING', [key]);
+  for (const [from, to] of RULES_RENAMED) {
+    await once(`rename:${from}`, async () => {
+      const renamed = await pool.query(
+        `UPDATE recognition_rules SET event = $2 WHERE event = $1
+         AND NOT EXISTS (SELECT 1 FROM recognition_rules WHERE event = $2)`,
+        [from, to]
+      );
+      if (renamed.rowCount) say(`Renamed recognition rule "${from}" to "${to}"`);
+    });
   }
+
+  for (const [event, points, dollar] of RULES_ADDED_LATER) {
+    await once(`rule:${event}`, async () => {
+      const added = await pool.query(
+        'INSERT INTO recognition_rules (event, points, dollar_value) VALUES ($1, $2, $3) ON CONFLICT (event) DO NOTHING',
+        [event, points, dollar]
+      );
+      if (added.rowCount) say(`Added recognition rule "${event}"`);
+    });
+  }
+
+  await once('hide-unused-rules-2026-10', async () => {
+    const hidden = await pool.query(
+      'UPDATE recognition_rules SET show_on_profile = false WHERE event = ANY($1)',
+      [RULES_HIDDEN_AT_START]
+    );
+    if (hidden.rowCount) say(`Hid ${hidden.rowCount} rules the program doesn't use yet from employee profiles`);
+  });
 
   const rewardCount = Number((await pool.query('SELECT COUNT(*) FROM rewards')).rows[0].count);
   if (rewardCount === 0) {

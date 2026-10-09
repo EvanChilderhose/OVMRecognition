@@ -62,6 +62,27 @@ ALTER TABLE rewards ADD COLUMN IF NOT EXISTS image_version INTEGER DEFAULT 0;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_token TEXT UNIQUE;
 -- Which month a monthly award is for, as 'YYYY-MM' (e.g. Employee of the Month)
 ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS period TEXT;
+-- Whether employees see this rule in the "Earn points" list on their profile
+ALTER TABLE recognition_rules ADD COLUMN IF NOT EXISTS show_on_profile BOOLEAN DEFAULT true;
+
+-- Shifts worked per employee per month, from the monthly import. An employee's
+-- shifts_completed is the total of these, so re-importing a month never double-counts.
+CREATE TABLE IF NOT EXISTS monthly_shifts (
+  employee_id  INTEGER NOT NULL REFERENCES employees(id),
+  period       TEXT NOT NULL,   -- 'YYYY-MM'
+  shifts       INTEGER NOT NULL,
+  imported_at  TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (employee_id, period)
+);
+
+-- Text wording edited in the dashboard. Texts without a row here use the
+-- default wording in lib/messages.js.
+CREATE TABLE IF NOT EXISTS message_templates (
+  key         TEXT PRIMARY KEY,
+  body        TEXT,
+  enabled     BOOLEAN DEFAULT true,
+  updated_at  TIMESTAMPTZ DEFAULT now()
+);
 
 CREATE INDEX IF NOT EXISTS idx_transactions_employee ON point_transactions(employee_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON point_transactions(status);

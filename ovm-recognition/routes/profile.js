@@ -53,7 +53,7 @@ router.get('/profile-api/:token', wrap(async (req, res) => {
     ),
     pool.query(`SELECT id, reward, point_cost, dollar_value, description, icon, image_version, (image IS NOT NULL) AS has_image
                 FROM rewards WHERE active = true ORDER BY point_cost ASC`),
-    pool.query('SELECT event, points, dollar_value FROM recognition_rules ORDER BY points ASC, event ASC')
+    pool.query('SELECT event, points, dollar_value FROM recognition_rules WHERE show_on_profile IS NOT FALSE ORDER BY points ASC, event ASC')
   ]);
 
   res.json({

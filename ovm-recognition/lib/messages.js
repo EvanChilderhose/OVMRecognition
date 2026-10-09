@@ -1,62 +1,125 @@
-// Every text the app sends is defined here, so the wording lives in one place.
-// Placeholders in {curly_braces} are filled in when the text is sent.
-// Texts to a known employee get their profile link added at the end.
+// Every text the app sends is listed here with its default wording.
+// The wording can be edited (or a text switched off) from the dashboard's
+// Texts tab — those edits are stored in the message_templates table and take
+// priority over the defaults below.
 //
-// (Later these will be editable from the dashboard — see the roadmap.)
+// Placeholders in {curly_braces} are filled in when the text is sent.
+// Texts to a known employee get their profile link added at the end
+// (the "profile_footer" text).
 
 const pool = require('../db/pool');
 const { sendSMS } = require('./ghl');
 const { profileUrl, ensureProfileToken } = require('./profile');
 
-const TEMPLATES = {
-  award_approved: 'Congrats {first_name}! You earned {points} points for "{reason}". Text POINTS anytime to check your balance.',
-  redemption_approved: 'Your redemption of "{reward}" has been approved! Reach out to your manager to arrange it.',
-  balance: 'Hi {first_name}, you have {balance} points available ({lifetime} earned all-time).',
-  redeem_how: 'To redeem, text REDEEM followed by the reward name, e.g. "REDEEM OVM Flannel".',
-  redeem_not_found: 'We couldn\'t find a reward called "{reward}". Text POINTS to see your balance, or check with your manager for exact reward names.',
-  redeem_not_enough: '"{reward}" costs {cost} points — you currently have {balance}. Keep it up!',
-  redeem_requested: 'Requested "{reward}" for {cost} points. It\'s pending manager approval — we\'ll text you once it\'s confirmed.',
-  help: 'Hi {first_name}! Text POINTS to check your balance, or REDEEM followed by a reward name (e.g. "REDEEM $100 Meat").',
-  unknown_number: 'We couldn\'t match this number to an employee record. Please contact your manager.',
-  employee_of_the_month: 'Congrats {first_name}! You\'re Ottawa Valley Meats\' Employee of the Month for {month}! You earned {points} points.',
-  // Sent to the program manager (ADMIN_PHONE), not employees — no profile link is added
-  admin_month_end: 'Month end! Time to pick {month}\'s Employee of the Month and run the monthly awards: {dashboard_link}'
-};
+// Shown in the dashboard in this order. `sample` fills the placeholders for
+// previews and test texts. `toEmployee: false` texts don't get the profile link.
+const TEXTS = [
+  { key: 'award_approved', group: 'Awards', label: 'Award approved',
+    when: 'When you approve an award in Pending Approvals (monthly awards, birthdays, anniversaries, nominations, milestones).',
+    body: 'Congrats {first_name}! You earned {points} points for {reason}. You now have {balance} points.',
+    sample: { points: 50, reason: 'Perfect Monthly Attendance', balance: 300 } },
+  { key: 'employee_of_the_month', group: 'Awards', label: 'Employee of the Month',
+    when: 'When you choose an Employee of the Month who is in the rewards program.',
+    body: 'Congrats {first_name}! You\'re Ottawa Valley Meats\' Employee of the Month for {month}! You earned {points} points.',
+    sample: { month: 'October 2026', points: 100, balance: 350 } },
 
-const PROFILE_FOOTER = 'View your awards profile: {profile_link}';
+  { key: 'redeem_requested', group: 'Rewards', label: 'Reward requested',
+    when: 'Right after an employee requests a reward by text (REDEEM …).',
+    body: 'Requested {reward} for {cost} points. It\'s waiting on a manager — we\'ll text you once it\'s approved.',
+    sample: { reward: 'OVM Flannel', cost: 200, balance: 100 } },
+  { key: 'redemption_approved', group: 'Rewards', label: 'Reward approved',
+    when: 'When you approve a reward request.',
+    body: 'Your {reward} request has been approved! Reach out to your manager to arrange it.',
+    sample: { reward: 'OVM Flannel' } },
+  { key: 'redemption_denied', group: 'Rewards', label: 'Reward declined',
+    when: 'When you deny a reward request. Their points are returned automatically.',
+    body: 'Your {reward} request wasn\'t approved this time, so your {points} points are back in your balance. Questions? Ask your manager.',
+    sample: { reward: 'OVM Flannel', points: 200, balance: 300 } },
+
+  { key: 'balance', group: 'Replies to employee texts', label: 'Points balance',
+    when: 'When an employee texts POINTS or BALANCE.',
+    body: 'Hi {first_name}, you have {balance} points available ({lifetime} earned all-time).',
+    sample: { balance: 300, lifetime: 450 } },
+  { key: 'help', group: 'Replies to employee texts', label: 'Help',
+    when: 'When an employee texts anything the app doesn\'t recognize.',
+    body: 'Hi {first_name}! Text POINTS to check your balance, or REDEEM followed by a reward name (e.g. "REDEEM $100 Meat").',
+    sample: {} },
+  { key: 'redeem_how', group: 'Replies to employee texts', label: 'How to redeem',
+    when: 'When an employee texts REDEEM without a reward name.',
+    body: 'To redeem, text REDEEM followed by the reward name, e.g. "REDEEM OVM Flannel".',
+    sample: {} },
+  { key: 'redeem_not_found', group: 'Replies to employee texts', label: 'Reward not found',
+    when: 'When an employee texts REDEEM with a reward name that doesn\'t match.',
+    body: 'We couldn\'t find a reward called "{reward}". Check the reward names on your profile.',
+    sample: { reward: 'Flannel shirt' } },
+  { key: 'redeem_not_enough', group: 'Replies to employee texts', label: 'Not enough points',
+    when: 'When an employee texts REDEEM for a reward they can\'t afford yet.',
+    body: '{reward} costs {cost} points — you currently have {balance}. Keep it up!',
+    sample: { reward: '$100 Meat', cost: 500, balance: 300 } },
+  { key: 'unknown_number', group: 'Replies to employee texts', label: 'Unknown number', toEmployee: false,
+    when: 'When someone texts in from a number that isn\'t an employee\'s.',
+    body: 'We couldn\'t match this number to an employee record. Please contact your manager.',
+    sample: {} },
+
+  { key: 'profile_footer', group: 'Added to every employee text', label: 'Profile link line', footer: true,
+    when: 'Added to the end of every text sent to an employee.',
+    body: 'View your awards profile: {profile_link}',
+    sample: { profile_link: 'https://ovm-recognition.onrender.com/me/abc123' } },
+
+  { key: 'admin_month_end', group: 'To you (the manager)', label: 'Month-end reminder', toEmployee: false,
+    when: 'Texted to ADMIN_PHONE at 10 AM on the last day of each month.',
+    body: 'Month end! Time to pick {month}\'s Employee of the Month and run the monthly awards: {dashboard_link}',
+    sample: { month: 'October 2026', dashboard_link: 'https://ovm-recognition.onrender.com' } }
+];
+
+const BY_KEY = Object.fromEntries(TEXTS.map(t => [t.key, t]));
+const placeholdersOf = body => [...new Set((body.match(/\{(\w+)\}/g) || []).map(m => m.slice(1, -1)))];
+
+// The wording and on/off state in use for a text (dashboard edit, or the default)
+async function getTemplate(key) {
+  const def = BY_KEY[key];
+  if (!def) throw new Error(`Unknown message template "${key}"`);
+  const row = (await pool.query('SELECT body, enabled FROM message_templates WHERE key = $1', [key])).rows[0];
+  return { body: (row && row.body) || def.body, enabled: row ? row.enabled !== false : true };
+}
 
 function fill(template, vars) {
   return template.replace(/\{(\w+)\}/g, (match, key) => (vars[key] !== undefined && vars[key] !== null ? String(vars[key]) : match));
 }
 
-// Builds the final text for a template key. Pass the employee (when known) so
-// {first_name} and the profile link can be filled in.
-function render(key, vars = {}, employee = null) {
-  const template = TEMPLATES[key];
-  if (!template) throw new Error(`Unknown message template "${key}"`);
+// Builds the final text. Pass the employee (when known) so {first_name},
+// {balance} and the profile link can be filled in.
+function render(body, vars = {}, employee = null, footer = null) {
   const all = { ...vars };
   if (employee) {
     all.first_name = all.first_name || employee.name.split(' ')[0];
     if (all.balance === undefined) all.balance = employee.current_points;
     if (all.lifetime === undefined) all.lifetime = employee.lifetime_points;
   }
-  let text = fill(template, all);
+  let text = fill(body, all);
   const link = profileUrl(employee);
-  if (link) text += '\n\n' + fill(PROFILE_FOOTER, { profile_link: link });
+  if (link && footer) text += '\n\n' + fill(footer, { profile_link: link });
   return text;
 }
 
-// Sends a templated text and records it in sms_log. Never throws — a failed
-// text shouldn't undo an approval or a redemption.
+// Sends a text and records it in sms_log. Never throws — a failed text
+// shouldn't undo an approval or a redemption. Switched-off texts are skipped.
 // target: { employee } for a known employee, or { phone, name, contactId } otherwise.
 async function sendTemplate(key, vars, target) {
   const phone = target.employee ? target.employee.phone : target.phone;
   if (!phone || !process.env.GHL_API_KEY) return null;
   let employee = target.employee || null;
-  let message;
+  let message = null;
   try {
-    employee = await ensureProfileToken(employee); // first text creates their profile link
-    message = render(key, vars, employee);
+    const template = await getTemplate(key);
+    if (!template.enabled) return null;
+    let footer = null;
+    if (employee && BY_KEY[key].toEmployee !== false) {
+      employee = await ensureProfileToken(employee); // first text creates their profile link
+      const f = await getTemplate('profile_footer');
+      if (f.enabled) footer = f.body;
+    }
+    message = render(template.body, vars, employee, footer);
     await sendSMS({ contactId: target.contactId, phone, name: employee ? employee.name : target.name, message });
     await pool.query(
       `INSERT INTO sms_log (employee_id, direction, phone, body) VALUES ($1, 'outbound', $2, $3)`,
@@ -68,4 +131,4 @@ async function sendTemplate(key, vars, target) {
   return message;
 }
 
-module.exports = { TEMPLATES, render, sendTemplate };
+module.exports = { TEXTS, BY_KEY, getTemplate, render, sendTemplate, placeholdersOf, fill };

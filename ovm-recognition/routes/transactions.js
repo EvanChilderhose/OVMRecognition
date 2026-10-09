@@ -101,7 +101,7 @@ router.post('/:id/approve', wrap(async (req, res) => {
 router.post('/:id/deny', wrap(async (req, res) => {
   const { approved_by, reason } = req.body;
 
-  await withTransaction(async (client) => {
+  const tx = await withTransaction(async (client) => {
     const tx = await lockPending(client, req.params.id);
 
     await client.query(
@@ -116,7 +116,15 @@ router.post('/:id/deny', wrap(async (req, res) => {
         [tx.points, tx.employee_id] // tx.points is negative for redemptions
       );
     }
+    return tx;
   });
+
+  // Let the employee know their reward request was declined and refunded.
+  // (Denied awards aren't texted — the employee was never told about them.)
+  if (tx.type === 'redemption') {
+    const employee = (await pool.query('SELECT * FROM employees WHERE id = $1', [tx.employee_id])).rows[0];
+    if (employee) await sendTemplate('redemption_denied', { reward: tx.reason, points: Math.abs(tx.points) }, { employee });
+  }
 
   res.json({ ok: true });
 }));

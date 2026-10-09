@@ -26,6 +26,7 @@ app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/recognition-rules', require('./routes/rules'));
 app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/monthly', require('./routes/monthly'));
+app.use('/api/texts', require('./routes/texts'));
 app.use('/webhook', require('./routes/webhook'));
 app.use(require('./routes/profile')); // employee profile pages: /me/<token> (outside /api, so no passcode)
 app.use(require('./routes/rewards').imageRouter); // reward photos: /reward-image/<id>

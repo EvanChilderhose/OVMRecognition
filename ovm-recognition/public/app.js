@@ -55,7 +55,106 @@ function loadTab(tab) {
   if (tab === 'pending') loadPending();
   if (tab === 'rewards') loadRewards();
   if (tab === 'rules') loadRules();
+  if (tab === 'texts') loadTexts();
   if (tab === 'log') loadLog();
+}
+
+// ---------- Texts ----------
+let textsCache = [];
+
+async function loadTexts() {
+  textsCache = await api('/api/texts');
+  const groups = [];
+  for (const t of textsCache) {
+    let g = groups.find(x => x.name === t.group);
+    if (!g) groups.push(g = { name: t.group, items: [] });
+    g.items.push(t);
+  }
+  document.getElementById('texts-list').innerHTML = groups.map(g => `
+    <h3 class="texts-group">${esc(g.name)}</h3>
+    ${g.items.map(t => `
+      <article class="text-card${t.enabled ? '' : ' off'}" id="text-${t.key}">
+        <header class="text-head">
+          <div>
+            <h4>${esc(t.label)} ${t.customized ? '<span class="tag warn">Edited</span>' : ''}</h4>
+            <p class="text-when">${esc(t.when)}</p>
+          </div>
+          <label class="switch" title="${t.enabled ? 'On' : 'Off'}">
+            <input type="checkbox" ${t.enabled ? 'checked' : ''} onchange="saveText('${t.key}')" aria-label="Send this text">
+            <span class="switch-track"></span><span class="switch-label">${t.enabled ? 'On' : 'Off'}</span>
+          </label>
+        </header>
+        <textarea id="body-${t.key}" rows="3" oninput="updateTextPreview('${t.key}')">${esc(t.body)}</textarea>
+        <div class="text-meta">
+          <span class="text-fields">${t.placeholders.length ? 'Fill-ins: ' + t.placeholders.map(p => `<code>{${esc(p)}}</code>`).join(' ') : 'No fill-ins'}</span>
+          <span class="text-count" id="count-${t.key}"></span>
+        </div>
+        <div class="text-preview" id="preview-${t.key}"></div>
+        <div class="text-actions">
+          <button class="small" onclick="saveText('${t.key}')">Save</button>
+          <button class="small secondary" onclick="testText('${t.key}')">Send me a test</button>
+          ${t.customized ? `<button class="small link" onclick="resetText('${t.key}')">Reset to default</button>` : ''}
+          <span class="text-status" id="status-${t.key}" role="status"></span>
+        </div>
+      </article>`).join('')}`).join('');
+  textsCache.forEach(t => updateTextPreview(t.key));
+}
+
+// Live preview with sample details, like the employee would see it
+function updateTextPreview(key) {
+  const t = textsCache.find(x => x.key === key);
+  const body = document.getElementById(`body-${key}`).value;
+  const vars = { first_name: 'Sam', balance: 300, lifetime: 450, ...t.sample };
+  let text = body.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+  if (t.to_employee) {
+    const footer = textsCache.find(x => x.key === 'profile_footer');
+    const footerBody = document.getElementById('body-profile_footer')?.value || footer.body;
+    if (footer.enabled) text += '\n\n' + footerBody.replace('{profile_link}', footer.sample.profile_link);
+  }
+  document.getElementById(`preview-${key}`).textContent = text;
+  // SMS messages are split into 160-character parts (fewer with emoji)
+  const parts = Math.max(1, Math.ceil(text.length / 153));
+  document.getElementById(`count-${key}`).textContent = `${text.length} characters${text.length > 160 ? ` · sends as ${parts} parts` : ''}`;
+}
+
+function textStatus(key, msg, isError) {
+  const el = document.getElementById(`status-${key}`);
+  el.textContent = msg;
+  el.classList.toggle('error', !!isError);
+  if (!isError) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 3000);
+}
+
+async function saveText(key) {
+  const card = document.getElementById(`text-${key}`);
+  const enabled = card.querySelector('input[type=checkbox]').checked;
+  try {
+    await api(`/api/texts/${key}`, { method: 'PUT', body: JSON.stringify({ body: document.getElementById(`body-${key}`).value, enabled }) });
+    await loadTexts();
+    textStatus(key, enabled ? 'Saved' : 'Saved — this text is switched off');
+  } catch (e) {
+    if (e.message !== 'unauthorized') textStatus(key, e.message, true);
+  }
+}
+
+async function resetText(key) {
+  if (!confirm('Go back to the original wording for this text?')) return;
+  try {
+    await api(`/api/texts/${key}/reset`, { method: 'POST' });
+    await loadTexts();
+    textStatus(key, 'Back to the original wording');
+  } catch (e) {
+    if (e.message !== 'unauthorized') textStatus(key, e.message, true);
+  }
+}
+
+async function testText(key) {
+  textStatus(key, 'Sending…');
+  try {
+    await api(`/api/texts/${key}/test`, { method: 'POST' });
+    textStatus(key, 'Sent to your phone (saved wording, sample details)');
+  } catch (e) {
+    if (e.message !== 'unauthorized') textStatus(key, e.message, true);
+  }
 }
 
 function initApp() {
@@ -63,6 +162,75 @@ function initApp() {
   loadEmployees();
   refreshPendingCount();
   loadEmployeeOfMonthStatus();
+}
+
+// ---------- Monthly results import ----------
+let importState = null;
+
+function openImportForm() {
+  importState = null;
+  showModal('Import monthly results', `
+    <p class="hint-text">Choose the results file from this month's /monthly-awards run (e.g. <code>monthly-results-2026-10.csv</code>).
+      Nothing changes until you press Import.</p>
+    ${field('f-import-file', 'Results file', '<input id="f-import-file" type="file" accept=".csv,text/csv" onchange="previewImport(this)">')}
+    <div id="import-preview"></div>
+  `, async () => {
+    if (!importState) throw new Error('Choose the results file first.');
+    const rows = importState.rows.map((r, i) => ({
+      employee_id: Number(document.getElementById(`imp-emp-${i}`).value) || null,
+      shifts: r.shifts,
+      awards: r.awards.filter(a => a.ok).map(a => a.name)
+    }));
+    const unmatched = rows.filter((r, i) => !r.employee_id && (importState.rows[i].awards.length || importState.rows[i].shifts)).length;
+    if (unmatched && !confirm(`${unmatched} line(s) aren't matched to an employee and will be skipped. Import the rest?`)) return;
+    const s = await api('/api/monthly/import', { method: 'POST', body: JSON.stringify({ period: importState.period, rows }) });
+    closeModal();
+    refreshPendingCount();
+    if (!document.getElementById('tab-pending').classList.contains('hidden')) loadPending();
+    loadEmployees();
+    alert(`Imported ${importState.label}:\n• ${s.awards} award(s) added to Pending Approvals${s.skipped ? ` (${s.skipped} already given, skipped)` : ''}\n• Shifts updated for ${s.shifts} employee(s)` +
+      (s.milestones.length ? `\n• Shift milestones reached: ${s.milestones.join(', ')}` : '') +
+      `\n\nApprove the awards in Pending Approvals to send each person their text.`);
+  });
+  document.querySelector('.modal').classList.add('wide');
+  document.getElementById('modal-save').textContent = 'Import';
+}
+
+async function previewImport(input) {
+  const file = input.files && input.files[0];
+  const box = document.getElementById('import-preview');
+  if (!file) return;
+  try {
+    const csv = await file.text();
+    importState = await api('/api/monthly/import/preview', { method: 'POST', body: JSON.stringify({ csv }) });
+  } catch (e) {
+    importState = null;
+    if (e.message !== 'unauthorized') box.innerHTML = `<p class="import-error">${esc(e.message)}</p>`;
+    return;
+  }
+  const opts = sel => `<option value="">— Skip this line —</option>` +
+    importState.employees.map(e => `<option value="${e.id}" ${e.id === sel ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
+  const awardsTotal = importState.rows.reduce((n, r) => n + r.awards.filter(a => a.ok).length, 0);
+  box.innerHTML = `
+    <div class="import-summary">
+      <strong>${esc(importState.label)}</strong> · ${importState.rows.length} employees · ${awardsTotal} awards
+      ${importState.previously_imported ? '<span class="tag warn">Imported before — shifts will be replaced, awards already given are skipped</span>' : ''}
+    </div>
+    <div class="table-wrap import-table">
+      <table>
+        <thead><tr><th>In the file</th><th>Employee in the app</th><th class="num">Shifts</th><th>Awards</th></tr></thead>
+        <tbody>${importState.rows.map((r, i) => `
+          <tr${r.employee_id ? '' : ' class="unmatched"'}>
+            <td>${esc(r.name)}${r.problems.map(p => `<span class="sub-line import-error">${esc(p)}</span>`).join('')}</td>
+            <td><select id="imp-emp-${i}" aria-label="Employee for ${esc(r.name)}">${opts(r.employee_id)}</select>
+              ${r.employee_id ? '' : '<span class="sub-line import-error">No match — pick them, or add them under Employees first</span>'}</td>
+            <td class="num">${r.shifts === null ? '—' : r.shifts}</td>
+            <td>${r.awards.length ? r.awards.map(a => a.ok
+              ? `<span class="type">${esc(a.name)} · ${a.points}</span>`
+              : `<span class="type bad" title="${esc(a.problem)}">${esc(a.name)} — ${esc(a.problem)}</span>`).join(' ') : '<span class="dim">—</span>'}</td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
 }
 
 // ---------- Employee of the Month ----------
@@ -442,8 +610,9 @@ async function loadRules() {
       <td class="strong">${esc(r.event)}</td>
       <td class="num strong">${fmtNum(r.points)}</td>
       <td class="num">${fmtMoney(r.dollar_value)}</td>
+      <td>${r.show_on_profile !== false ? '<span class="tag ok">Shown</span>' : '<span class="tag off">Hidden</span>'}</td>
       <td class="actions"><button class="link" onclick="openRuleForm(${r.id})">Edit</button></td>
-    </tr>`).join('') || emptyRow(4, 'No rules yet. Add one for each anniversary or milestone you reward.');
+    </tr>`).join('') || emptyRow(5, 'No rules yet. Add one for each anniversary or milestone you reward.');
 }
 
 function openRuleForm(id) {
@@ -454,8 +623,9 @@ function openRuleForm(id) {
       ${field('f-rpoints', 'Points', `<input id="f-rpoints" type="number" value="${esc(r.points)}">`)}
       ${field('f-rdollar', 'Dollar Value', `<input id="f-rdollar" type="number" value="${esc(r.dollar_value)}">`)}
     </div>
+    ${field('f-rshow', 'Show on employee profiles', `<select id="f-rshow"><option value="true" ${r.show_on_profile !== false ? 'selected' : ''}>Yes — listed under "Earn points"</option><option value="false" ${r.show_on_profile === false ? 'selected' : ''}>No — hidden (not running this award yet)</option></select>`)}
   `, async () => {
-    const payload = { event: val('f-event'), points: Number(val('f-rpoints')), dollar_value: Number(val('f-rdollar')) || null };
+    const payload = { event: val('f-event'), points: Number(val('f-rpoints')), dollar_value: Number(val('f-rdollar')) || null, show_on_profile: val('f-rshow') === 'true' };
     if (id) await api(`/api/recognition-rules/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
     else await api('/api/recognition-rules', { method: 'POST', body: JSON.stringify(payload) });
     closeModal();
@@ -516,7 +686,10 @@ function showModal(title, bodyHtml, onSave) {
   const first = document.querySelector('#modal-body input, #modal-body select, #modal-body textarea');
   if (first) first.focus();
 }
-function closeModal() { document.getElementById('modal-backdrop').classList.add('hidden'); }
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.add('hidden');
+  document.querySelector('.modal').classList.remove('wide');
+}
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !document.getElementById('modal-backdrop').classList.contains('hidden')) closeModal();
 });
