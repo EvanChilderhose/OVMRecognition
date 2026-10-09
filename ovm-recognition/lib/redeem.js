@@ -39,6 +39,12 @@ async function requestReward(employeeId, { rewardId, rewardName }) {
     const current = (await pool.query('SELECT current_points FROM employees WHERE id = $1', [employeeId])).rows[0].current_points;
     return { status: 'not_enough', reward, balance: current };
   }
+  // Let the manager know there's a request waiting (never blocks the request itself)
+  const employee = (await pool.query('SELECT name FROM employees WHERE id = $1', [employeeId])).rows[0];
+  await require('./messages').notifyManager('admin_redemption_request', {
+    employee: employee ? employee.name : 'An employee', reward: reward.reward, cost: reward.point_cost
+  });
+
   return { status: 'requested', reward, balance };
 }
 

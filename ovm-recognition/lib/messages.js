@@ -9,7 +9,8 @@
 
 const pool = require('../db/pool');
 const { sendSMS } = require('./ghl');
-const { profileUrl, ensureProfileToken } = require('./profile');
+const { profileUrl, ensureProfileToken, appUrl } = require('./profile');
+const { normalizePhone } = require('./phone');
 
 // Shown in the dashboard in this order. `sample` fills the placeholders for
 // previews and test texts. `toEmployee: false` texts don't get the profile link.
@@ -71,6 +72,10 @@ const TEXTS = [
     body: 'View your awards profile: {profile_link}',
     sample: { profile_link: 'https://ovm-recognition.onrender.com/me/abc123' } },
 
+  { key: 'admin_redemption_request', group: 'To you (the manager)', label: 'Reward request alert', toEmployee: false,
+    when: 'Texted to ADMIN_PHONE each time an employee requests a reward (by text or from their profile).',
+    body: 'Reward request: {employee} wants {reward} ({cost} points). Approve or deny in Pending Approvals: {dashboard_link}',
+    sample: { employee: 'Karlyn Babcock', reward: 'OVM Flannel', cost: 200, dashboard_link: 'https://ovm-recognition.onrender.com' } },
   { key: 'admin_month_end', group: 'To you (the manager)', label: 'Month-end reminder', toEmployee: false,
     when: 'Texted to ADMIN_PHONE at 10 AM on the last day of each month.',
     body: 'Month end! Time to pick {month}\'s Employee of the Month and run the monthly awards: {dashboard_link}',
@@ -139,4 +144,16 @@ async function sendTemplate(key, vars, target, options = {}) {
   return message;
 }
 
-module.exports = { TEXTS, BY_KEY, getTemplate, render, sendTemplate, placeholdersOf, fill };
+// The program manager's number(s) from ADMIN_PHONE (commas allow more than one)
+function adminPhones() {
+  return String(process.env.ADMIN_PHONE || '').split(',').map(p => normalizePhone(p)).filter(Boolean);
+}
+
+// Texts the manager. {dashboard_link} is filled in automatically.
+async function notifyManager(key, vars = {}) {
+  for (const phone of adminPhones()) {
+    await sendTemplate(key, { dashboard_link: appUrl() || 'the dashboard', ...vars }, { phone, name: 'OVM Manager' });
+  }
+}
+
+module.exports = { adminPhones, notifyManager, TEXTS, BY_KEY, getTemplate, render, sendTemplate, placeholdersOf, fill };

@@ -13,8 +13,6 @@
 const cron = require('node-cron');
 const pool = require('../db/pool');
 const { TIMEZONE, today, parseDate, isSameMonthDay, currentHour, isLastDayOfMonth, periodOf, periodLabel } = require('./time');
-const { normalizePhone } = require('./phone');
-const { appUrl } = require('./profile');
 const REMINDER_HOUR = 10;
 
 async function checkBirthdaysAndAnniversaries() {
@@ -65,14 +63,10 @@ async function maybeCreateAward(employee, eventLabel, rule, now) {
   );
 }
 
-// ADMIN_PHONE: the manager's number (commas allow more than one, if ever needed)
-function adminPhones() {
-  return String(process.env.ADMIN_PHONE || '').split(',').map(p => normalizePhone(p)).filter(Boolean);
-}
-
 async function sendMonthEndReminder() {
   const now = today();
   if (!isLastDayOfMonth(now) || currentHour() < REMINDER_HOUR) return;
+  const { adminPhones, notifyManager } = require('./messages');
   const phones = adminPhones();
   if (!phones.length || !process.env.GHL_API_KEY) return;
 
@@ -84,10 +78,7 @@ async function sendMonthEndReminder() {
   );
   if (!claimed.rows.length) return; // already sent this month
 
-  const { sendTemplate } = require('./messages');
-  for (const phone of phones) {
-    await sendTemplate('admin_month_end', { month: periodLabel(period), dashboard_link: appUrl() || 'the dashboard' }, { phone, name: 'OVM Manager' });
-  }
+  await notifyManager('admin_month_end', { month: periodLabel(period) });
 }
 
 function run() {
