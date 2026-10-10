@@ -70,6 +70,7 @@ function showGone(message) {
 function render() {
   const e = data.employee;
   document.title = `${e.first_name}'s Awards | Ottawa Valley Meats`;
+  if (PREVIEW) $('preview-name').textContent = `Viewing as ${e.name} · preview`;
   $('hello').textContent = `Hi ${e.first_name}!`;
   $('main').setAttribute('aria-busy', 'false');
 

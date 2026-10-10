@@ -1,4 +1,10 @@
-let PASSCODE = sessionStorage.getItem('ovm_passcode') || '';
+// Signed in for this browser tab (sessionStorage), or on this device if "Remember me" was ticked (localStorage)
+const store = {
+  get() { try { return sessionStorage.getItem('ovm_passcode') || localStorage.getItem('ovm_passcode') || ''; } catch (e) { return ''; } },
+  set(v, remember) { try { sessionStorage.setItem('ovm_passcode', v); if (remember) localStorage.setItem('ovm_passcode', v); } catch (e) {} },
+  clear() { try { sessionStorage.removeItem('ovm_passcode'); localStorage.removeItem('ovm_passcode'); } catch (e) {} }
+};
+let PASSCODE = store.get();
 let employeesCache = [];
 let rewardsCache = [];
 
@@ -19,6 +25,7 @@ async function api(path, options = {}) {
 }
 
 function showPasscodeScreen(error) {
+  if (error) store.clear(); // a saved passcode that no longer works is forgotten
   document.getElementById('app').classList.add('hidden');
   document.getElementById('passcode-screen').classList.remove('hidden');
   document.getElementById('passcode-error').textContent = error || '';
@@ -28,7 +35,7 @@ async function submitPasscode() {
   PASSCODE = document.getElementById('passcode-input').value;
   try {
     await api('/api/employees'); // used purely to validate the passcode
-    sessionStorage.setItem('ovm_passcode', PASSCODE);
+    store.set(PASSCODE, document.getElementById('remember-me').checked);
     document.getElementById('passcode-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     initApp();
@@ -411,6 +418,12 @@ async function resetProfileLink(id) {
   }
 }
 
+function signOut() {
+  store.clear();
+  PASSCODE = '';
+  location.reload();
+}
+
 // ---------- View as employee ----------
 function fillViewAs() {
   const sel = document.getElementById('view-as');
@@ -424,22 +437,11 @@ async function viewAsEmployee(sel) {
   if (!id) return;
   try {
     const r = await api('/api/employees/' + id + '/preview');
-    document.getElementById('viewas-title').textContent = 'Viewing as ' + r.name + ' · preview';
-    document.getElementById('viewas-title').title = 'Look-only preview: requests are turned off';
-    document.getElementById('viewas-frame').src = r.path;
-    document.getElementById('viewas-overlay').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    location.href = r.path; // full page, with a "Back to dashboard" bar (see me.js)
   } catch (e) {
     if (e.message !== 'unauthorized') alert(e.message);
   }
 }
-
-function closeViewAs() {
-  document.getElementById('viewas-overlay').classList.add('hidden');
-  document.getElementById('viewas-frame').src = 'about:blank';
-  document.body.style.overflow = '';
-}
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.getElementById('viewas-overlay').classList.contains('hidden')) closeViewAs(); });
 
 // ---------- Send a message (broadcast) ----------
 let bcFooter = null;
