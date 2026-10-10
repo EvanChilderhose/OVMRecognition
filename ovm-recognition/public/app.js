@@ -318,6 +318,7 @@ async function openEmployeeOfMonthForm() {
 // ---------- Employees ----------
 async function loadEmployees() {
   employeesCache = await api('/api/employees');
+  fillViewAs();
   const toWelcome = employeesCache.filter(e => e.status !== 'Inactive' && e.phone && !e.welcomed_at).length;
   const wbtn = document.getElementById('welcome-all-btn');
   wbtn.textContent = `Send welcome texts (${toWelcome})`;
@@ -409,6 +410,36 @@ async function resetProfileLink(id) {
     if (e.message !== 'unauthorized') alert(e.message);
   }
 }
+
+// ---------- View as employee ----------
+function fillViewAs() {
+  const sel = document.getElementById('view-as');
+  const active = employeesCache.filter(e => e.status !== 'Inactive');
+  sel.innerHTML = '<option value="">Choose a name…</option>' + active.map(e => '<option value="' + e.id + '">' + esc(e.name) + '</option>').join('');
+}
+
+async function viewAsEmployee(sel) {
+  const id = sel.value;
+  sel.value = '';
+  if (!id) return;
+  try {
+    const r = await api('/api/employees/' + id + '/preview');
+    document.getElementById('viewas-title').textContent = 'Viewing as ' + r.name + ' · preview';
+    document.getElementById('viewas-title').title = 'Look-only preview: requests are turned off';
+    document.getElementById('viewas-frame').src = r.path;
+    document.getElementById('viewas-overlay').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+  }
+}
+
+function closeViewAs() {
+  document.getElementById('viewas-overlay').classList.add('hidden');
+  document.getElementById('viewas-frame').src = 'about:blank';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.getElementById('viewas-overlay').classList.contains('hidden')) closeViewAs(); });
 
 // ---------- Send a message (broadcast) ----------
 let bcFooter = null;

@@ -1,5 +1,8 @@
 // Employee profile page. The token is the last part of the address: /me/<token>
 const TOKEN = location.pathname.split('/').filter(Boolean).pop();
+// Opened from the dashboard's "View as employee": look only, nothing can be requested
+const PREVIEW = new URLSearchParams(location.search).has('preview');
+if (PREVIEW) document.documentElement.classList.add('preview');
 let data = null;
 
 const $ = id => document.getElementById(id);
@@ -125,7 +128,7 @@ function renderRewards() {
         ${r.description ? `<p class="reward-desc">${esc(r.description)}</p>` : ''}
         <div class="reward-foot">
           ${can
-            ? `<button class="btn" data-request="${r.id}">Request this reward</button>`
+            ? (PREVIEW ? `<button class="btn" disabled title="Requests are turned off in preview">Request this reward</button>` : `<button class="btn" data-request="${r.id}">Request this reward</button>`)
             : `<div class="reward-progress"><span>${num(r.point_cost - bal)} more points to go</span><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></div>`}
         </div>
       </li>`;
@@ -279,7 +282,7 @@ if (isSaved) $('save-foot').classList.add('hidden');
 
 // The welcome text links to <profile>#save. Open the steps, then drop "#save" from the
 // address so the saved home-screen icon opens the plain profile.
-if (location.hash === '#save') {
+if (!PREVIEW && location.hash === '#save') {
   history.replaceState(null, '', location.pathname);
   if (!isSaved) openSave();
 }

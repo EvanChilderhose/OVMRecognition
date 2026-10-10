@@ -341,6 +341,26 @@ textarea { min-height: 72px; resize: vertical; }
 .switch input:checked + .switch-track::after { transform: translateX(16px); }
 .switch input:focus-visible + .switch-track { outline: 2px solid var(--red); outline-offset: 2px; }
 
+/* View as employee */
+.view-as { display: flex; flex-direction: column; gap: 6px; padding: 0 8px; margin-top: auto; }
+.view-as label { font-size: 0.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.75); }
+.view-as select { background: rgba(255, 255, 255, 0.12); color: #fff; border-color: rgba(255, 255, 255, 0.25); font-size: 0.85rem; padding: 7px 8px; }
+.view-as select option { color: var(--ink); }
+.viewas-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 30; background: rgba(38, 32, 28, 0.6); display: flex; flex-direction: column; }
+.viewas-bar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top)); background: var(--ink); color: #fff; font-size: 0.875rem; font-weight: 600; }
+#viewas-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewas-close { flex: none; background: #fff; color: var(--ink); }
+.viewas-close:hover { background: var(--tan); }
+.viewas-frame-wrap { flex: 1; display: flex; justify-content: center; padding: 16px; min-height: 0; }
+.viewas-frame-wrap iframe { flex: 1 1 auto; min-width: 0; width: 100%; max-width: 420px; height: 100%; border: 0; border-radius: 18px; background: var(--cream); box-shadow: 0 20px 48px -16px rgba(0, 0, 0, 0.5); }
+@media (max-width: 860px) {
+  .view-as { margin: 0; padding: 0 16px 12px; flex-direction: row; align-items: center; }
+  .view-as label { flex: none; }
+  .view-as select { flex: 1; }
+  .viewas-frame-wrap { padding: 0; }
+  .viewas-frame-wrap iframe { max-width: none; border-radius: 0; }
+}
+
 /* Send a message */
 .bc-modes { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.875rem; }
 .bc-modes label, .bc-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; }

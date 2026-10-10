@@ -41,6 +41,12 @@
       <button class="tab-btn" data-tab="texts">Texts</button>
       <button class="tab-btn" data-tab="log">Transaction Log</button>
     </nav>
+    <div class="view-as">
+      <label for="view-as">View as employee</label>
+      <select id="view-as" onchange="viewAsEmployee(this)">
+        <option value="">Choose a name…</option>
+      </select>
+    </div>
   </aside>
 
   <main>
@@ -171,6 +177,15 @@
       <button id="modal-save"></button>
     </div>
   </div>
+</div>
+
+<!-- "View as employee": their profile exactly as they see it, look-only -->
+<div id="viewas-overlay" class="viewas-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="viewas-title">
+  <div class="viewas-bar">
+    <span id="viewas-title">Viewing as</span>
+    <button class="viewas-close" onclick="closeViewAs()">Back to dashboard</button>
+  </div>
+  <div class="viewas-frame-wrap"><iframe id="viewas-frame" title="Employee profile preview"></iframe></div>
 </div>
 
 <script src="icons.js"></script>

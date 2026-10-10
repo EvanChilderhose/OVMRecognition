@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require('../db/pool');
 const { wrap, httpError } = require('../lib/http');
 const { normalizePhone } = require('../lib/phone');
-const { newProfileToken } = require('../lib/profile');
+const { newProfileToken, ensureProfileToken } = require('../lib/profile');
 const { sendTemplate } = require('../lib/messages');
 const { contactCardUrl } = require('../lib/contactCard');
 
@@ -109,6 +109,16 @@ router.post('/:id/reset-profile-link', wrap(async (req, res) => {
   );
   if (result.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
   res.json(result.rows[0]);
+}));
+
+// "View as employee" (dashboard only, so it's behind the passcode): the address of
+// their profile in look-only preview mode. Creates their link if they don't have one yet.
+router.get('/:id/preview', wrap(async (req, res) => {
+  const found = (await pool.query('SELECT * FROM employees WHERE id = $1', [req.params.id])).rows[0];
+  if (!found) throw httpError(404, 'Employee not found');
+  if (found.status === 'Inactive') throw httpError(400, `${found.name} is inactive, so their profile is switched off.`);
+  const employee = await ensureProfileToken(found);
+  res.json({ path: `/me/${employee.profile_token}?preview=1`, name: employee.name });
 }));
 
 // Delete (or deactivate) an employee — soft delete is safer for historical records

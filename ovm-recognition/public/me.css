@@ -247,6 +247,10 @@ main { max-width: 560px; margin: -48px auto 0; padding: 0 16px 32px; }
 .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
 @keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+/* ---------- Manager preview (dashboard "View as employee") ---------- */
+.preview #save-foot, .preview #save-backdrop { display: none !important; }
+.preview .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+
 /* ---------- Save our number ---------- */
 .foot-actions { margin-top: 26px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .foot-actions .foot { margin-top: 0; }
