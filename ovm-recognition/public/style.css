@@ -187,6 +187,7 @@ main {
 
 /* ---------- Tables ---------- */
 .table-wrap {
+  position: relative; /* keeps hidden screen-reader labels inside the scroll box, so wide tables never widen the page */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -491,4 +492,9 @@ textarea { min-height: 72px; resize: vertical; }
   .panel-header h2 { font-size: 1.3rem; }
 
   .field-row { grid-template-columns: 1fr; }
+}
+
+/* iPhones zoom in when you tap a text box with text smaller than 16px — keep form fields at 16px on phones */
+@media (max-width: 860px) {
+  input, select, textarea { font-size: 16px; }
 }

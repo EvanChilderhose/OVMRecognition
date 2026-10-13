@@ -91,9 +91,9 @@ router.get('/profile-api/:token', wrap(async (req, res) => {
        ORDER BY COALESCE(resolved_at, created_at) DESC LIMIT 50`,
       [emp.id]
     ),
-    pool.query(`SELECT id, reward, point_cost, dollar_value, description, icon, image_version, (image IS NOT NULL) AS has_image
+    pool.query(`SELECT id, reward, point_cost, description, icon, image_version, (image IS NOT NULL) AS has_image
                 FROM rewards WHERE active = true ORDER BY point_cost ASC`),
-    pool.query('SELECT event, points, dollar_value, note FROM recognition_rules WHERE show_on_profile IS NOT FALSE ORDER BY points ASC, event ASC')
+    pool.query('SELECT event, points, note FROM recognition_rules WHERE show_on_profile IS NOT FALSE ORDER BY points ASC, event ASC')
   ]);
 
   res.json({

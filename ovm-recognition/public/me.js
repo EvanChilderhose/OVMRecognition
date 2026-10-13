@@ -115,14 +115,12 @@ function renderRewards() {
   $('rewards').innerHTML = data.rewards.map(r => {
     const can = bal >= r.point_cost;
     const pct = Math.min(100, (bal / r.point_cost) * 100);
-    const value = r.dollar_value ? `$${Number(r.dollar_value).toLocaleString('en-CA', { maximumFractionDigits: 0 })} value` : '';
     return `
       <li class="reward${can ? ' can' : ''}">
         <div class="reward-top">
           ${RewardIcons.picture(r)}
           <div class="reward-title">
             <h3 class="reward-name">${esc(r.reward)}</h3>
-            ${value ? `<p class="reward-value">${value}</p>` : ''}
           </div>
           <div class="reward-cost"><strong>${num(r.point_cost)}</strong><span>points</span></div>
         </div>

@@ -35,7 +35,11 @@ button { font: inherit; cursor: pointer; }
 
 /* ---------- Header ---------- */
 .top {
-  background: var(--red);
+  /* The flannel photo under a see-through OVM red, like the poster backgrounds */
+  background:
+    linear-gradient(180deg, rgba(140, 28, 19, 0.74) 0%, rgba(140, 28, 19, 0.84) 100%),
+    url("/header-photo.jpg") 30% 42% / cover no-repeat,
+    var(--red);
   color: #fff;
   padding: calc(18px + env(safe-area-inset-top)) 20px 64px;
   text-align: center;
@@ -151,7 +155,6 @@ main { max-width: 560px; margin: -48px auto 0; padding: 0 16px 32px; }
 }
 .reward-pic.icon svg { width: 34px; height: 34px; }
 .reward-name { margin: 0; font-size: 1.05rem; font-weight: 700; line-height: 1.25; }
-.reward-value { margin: 2px 0 0; color: var(--muted); font-size: 0.82rem; }
 .reward-cost { text-align: right; flex: none; }
 .reward-cost strong { display: block; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .reward-cost span { color: var(--muted); font-size: 0.75rem; }
