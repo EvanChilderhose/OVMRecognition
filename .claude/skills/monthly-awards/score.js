@@ -19,7 +19,8 @@
 //   Perfect Monthly Attendance — everyone: no absences, no lates, no very-lates
 //   Best Monthly Attendance / Least Lates / Most Early — full-timers only
 //     (scheduled fullTimeShiftsPerWeek or more), ties all win.
-//     Best = highest % of scheduled shifts worked, fewer lates breaks ties.
+//     Best = highest % of scheduled shifts worked. Tie: whoever worked the most shifts
+//     that month (including picked-up shifts); still tied: fewer lates; still tied: all win.
 //     Least Lates = fewest lates. Most Early = most early clock-ins (at least one).
 
 const fs = require('fs');
@@ -118,9 +119,10 @@ for (const p of people) {
   const c = st => counted.filter(d => d.status === st).length;
   const scheduled = days.filter(d => d.sched && d.status !== 'Holiday' && !(d.excused && d.status === 'Absent')).length;
   const worked = ['Late', 'Very late', 'Early', 'On time', 'Worked'].reduce((n, st) => n + days.filter(d => d.status === st).length, 0);
-  let shifts = days.filter(d => d.punches > 0).length;
+  const monthShifts = days.filter(d => d.punches > 0).length; // shifts worked this month (incl. picked up)
+  let shifts = monthShifts;
   if (SHIFTS_FROM) shifts = new Set(mine.filter(x => x.date >= SHIFTS_FROM && x.date <= monthEnd).map(x => x.date)).size;
-  const r = { p, days, scheduled, worked, absent: c('Absent'), late: c('Late'), veryLate: c('Very late'), early: c('Early'), pickedUp: c('Picked up'), shifts,
+  const r = { p, days, scheduled, worked, absent: c('Absent'), late: c('Late'), veryLate: c('Very late'), early: c('Early'), pickedUp: c('Picked up'), shifts, monthShifts,
     fullTime: p.perWeek >= FULL_TIME, awards: [] };
   r.att = scheduled ? Math.min(1, worked / scheduled) : null;
   results.push(r);
@@ -153,12 +155,13 @@ for (const n of unknownNames) flag(n, 'Not in config.json', 'Has punches but no 
 const eligible = results.filter(r => r.fullTime && r.scheduled > 0);
 for (const r of results) if (r.scheduled > 0 && r.absent === 0 && r.late === 0 && r.veryLate === 0) r.awards.push('Perfect Monthly Attendance');
 if (eligible.length) {
-  const score = r => r.att - r.late / 1000;
-  const best = Math.max(...eligible.map(score));
+  // Best Attendance: highest attendance %, then most shifts worked this month, then fewest lates
+  const rank = (a, b) => (Math.round(b.att * 1e6) - Math.round(a.att * 1e6)) || (b.monthShifts - a.monthShifts) || (a.late - b.late);
+  const top = [...eligible].sort(rank)[0];
   const leastL = Math.min(...eligible.map(r => r.late));
   const mostE = Math.max(...eligible.map(r => r.early));
   for (const r of eligible) {
-    if (score(r) === best) r.awards.push('Best Monthly Attendance');
+    if (rank(r, top) === 0) r.awards.push('Best Monthly Attendance');
     if (r.late === leastL) r.awards.push('Least Lates');
     if (mostE > 0 && r.early === mostE) r.awards.push('Most Early');
   }

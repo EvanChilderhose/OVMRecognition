@@ -41,7 +41,10 @@ root, which is git-ignored. Never copy those files elsewhere in the repo or comm
      Perfect Attendance. Late clock-outs don't matter.
    - Brayden's start is 8:30 even though he's often ~15–20 min late — keep it.
    - Best Attendance, Least Lates and Most Early are **full-timers only** (4+ scheduled shifts/week);
-     Perfect Attendance is open to everyone; ties all win.
+     Perfect Attendance is open to everyone.
+   - **Best Attendance tie-break:** if two or more have the same attendance %, it goes to whoever worked
+     the **most shifts that month** (picked-up shifts count); then fewer lates. Only a full tie on all
+     three shares it. Least Lates and Most Early ties still all win.
    Do ask about: possible holidays/closures, very late/early days that might be planned schedule
    changes, regular unscheduled days (schedule should change?), people not in config.json, and
    anyone with no punches. Re-run the script after each change until Evan is happy.
