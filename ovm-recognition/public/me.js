@@ -72,6 +72,7 @@ function render() {
   document.title = `${e.first_name}'s Awards | Ottawa Valley Meats`;
   if (PREVIEW) $('preview-name').textContent = `Viewing as ${e.name} · preview`;
   $('hello').textContent = `Hi ${e.first_name}!`;
+  document.querySelector('.top').classList.toggle('top-warehouse', /warehouse/i.test(e.department || ''));
   $('main').setAttribute('aria-busy', 'false');
 
   // Balance
