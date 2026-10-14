@@ -3,7 +3,8 @@
 // 1. Once a day: checks every active employee for a birthday or work
 //    anniversary that matches today, and creates a PENDING award for it —
 //    a manager still has to approve it in the dashboard before points are
-//    added and the text goes out. This never auto-texts employees.
+//    added and the text goes out. This never auto-texts employees, but it
+//    texts the manager (ADMIN_PHONE) a list of the new awards waiting.
 // 2. Month-end reminder: on the last day of each month, from 10 AM, texts the
 //    program manager (ADMIN_PHONE) to pick Employee of the Month and run the
 //    monthly awards. Sent once per month.
@@ -25,17 +26,26 @@ async function checkBirthdaysAndAnniversaries() {
   const rules = (await pool.query(`SELECT * FROM recognition_rules`)).rows;
   const ruleByEvent = Object.fromEntries(rules.map(r => [r.event, r]));
 
+  const created = [];
   for (const emp of employees) {
     if (emp.birthday && isSameMonthDay(emp.birthday, now)) {
-      await maybeCreateAward(emp, 'Birthday', ruleByEvent['Birthday'], now);
+      created.push(await maybeCreateAward(emp, 'Birthday', ruleByEvent['Birthday'], now));
     }
     if (emp.start_date && isSameMonthDay(emp.start_date, now)) {
       const years = now.year - parseDate(emp.start_date).year;
       if (years >= 1) {
         const label = `${years} Year Anniversary`;
-        await maybeCreateAward(emp, label, ruleByEvent[label], now);
+        created.push(await maybeCreateAward(emp, label, ruleByEvent[label], now));
       }
     }
+  }
+
+  // One text to the manager listing today's new awards (never repeats: only newly created ones)
+  const fresh = created.filter(Boolean);
+  if (fresh.length) {
+    await require('./messages').notifyManager('admin_awards_waiting', {
+      awards: fresh.map(a => `${a.name}, ${a.reason} (${a.points} pts)`).join('; ')
+    });
   }
 }
 
@@ -47,7 +57,7 @@ async function maybeCreateAward(employee, eventLabel, rule, now) {
        AND (created_at AT TIME ZONE $3)::date = $4::date`,
     [employee.id, eventLabel, TIMEZONE, now.iso]
   );
-  if (existing.rows.length > 0) return;
+  if (existing.rows.length > 0) return null;
 
   // No matching Recognition Rule (e.g. an 11 Year Anniversary): still flag it
   // for a manager, with 0 points. Approving it picks up the points from the
@@ -61,6 +71,7 @@ async function maybeCreateAward(employee, eventLabel, rule, now) {
      VALUES ($1, 'award', $2, $3, 'pending', $4)`,
     [employee.id, eventLabel, rule ? rule.points : 0, notes]
   );
+  return { name: employee.name, reason: eventLabel, points: rule ? rule.points : 0 };
 }
 
 async function sendMonthEndReminder() {
