@@ -59,6 +59,7 @@ function setupTabs() {
 
 function loadTab(tab) {
   if (tab === 'employees') loadEmployees();
+  if (tab === 'managers') loadManagers();
   if (tab === 'pending') loadPending();
   if (tab === 'rewards') loadRewards();
   if (tab === 'rules') loadRules();
@@ -585,6 +586,81 @@ async function createProfileLink(id) {
   }
 }
 
+// ---------- Managers ----------
+let managersCache = [];
+async function loadManagers() {
+  managersCache = await api('/api/managers');
+  const tbody = document.querySelector('#managers-table tbody');
+  tbody.innerHTML = managersCache.map(m => `
+    <tr>
+      <td><strong>${esc(m.name)}</strong>${m.phone ? `<span class="sub-line">${esc(m.phone)}</span>` : ''}</td>
+      <td>${statusTag(m.status)}</td>
+      <td class="nowrap">${m.invited_at ? `<span class="dim">Sent ${esc(fmtDateTime(m.invited_at))}</span>` : '<span class="tag warn">Not sent</span>'}</td>
+      <td class="num">${fmtNum(m.nominations)}${m.pending ? `<span class="sub-line">${m.pending} waiting</span>` : ''}</td>
+      <td class="actions"><button class="link" onclick="openManagerForm(${m.id})">Edit</button></td>
+    </tr>`).join('') || emptyRow(5, 'No managers yet. Add one, then send them an invite so they can start nominating.');
+}
+
+function managerLink(m) { return `${location.origin}/n/${m.token}`; }
+
+function openManagerForm(id) {
+  const m = id ? managersCache.find(x => x.id === id) : {};
+  showModal(id ? 'Edit Manager' : 'Add Manager', `
+    ${field('f-mname', 'Name', `<input id="f-mname" value="${esc(m.name)}">`)}
+    ${field('f-mphone', 'Mobile number', `<input id="f-mphone" type="tel" placeholder="613-555-1234" value="${esc(m.phone)}">`)}
+    ${field('f-mstatus', 'Status', `<select id="f-mstatus"><option ${m.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${m.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>`)}
+    ${id ? `
+    <div class="field profile-link">
+      <label for="f-mlink">Nominating page <span class="hint">(private to them)</span></label>
+      <div class="link-row">
+        <input id="f-mlink" readonly value="${esc(managerLink(m))}">
+        <button type="button" class="secondary" onclick="copyManagerLink()">Copy</button>
+      </div>
+      <button type="button" class="link reset-link" onclick="resetManagerLink(${m.id})">Reset link (if it was shared with someone else)</button>
+    </div>
+    <div class="field profile-link">
+      <label>Invite text</label>
+      <p class="hint-text" id="invite-status">${m.invited_at ? `Sent ${esc(fmtDateTime(m.invited_at))}` : 'Not sent yet'}</p>
+      <button type="button" class="secondary create-link" onclick="sendManagerInvite(${m.id})">${m.invited_at ? 'Resend invite' : 'Send invite'}</button>
+    </div>` : '<p class="hint-text">After saving, open them again to send the invite text.</p>'}
+  `, async () => {
+    const payload = { name: val('f-mname'), phone: val('f-mphone'), status: val('f-mstatus') };
+    if (id) await api(`/api/managers/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    else await api('/api/managers', { method: 'POST', body: JSON.stringify(payload) });
+    closeModal();
+    loadManagers();
+  });
+}
+
+async function copyManagerLink() {
+  const input = document.getElementById('f-mlink');
+  try { await navigator.clipboard.writeText(input.value); } catch (e) { input.select(); document.execCommand('copy'); }
+}
+
+async function resetManagerLink(id) {
+  if (!confirm('Make a new link for this manager? Their old link (and any saved home-screen icon) will stop working, so send them the invite again.')) return;
+  try {
+    const m = await api(`/api/managers/${id}/reset-link`, { method: 'POST' });
+    const i = managersCache.findIndex(x => x.id === id);
+    if (i >= 0) managersCache[i] = { ...managersCache[i], ...m };
+    openManagerForm(id);
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+  }
+}
+
+async function sendManagerInvite(id) {
+  const m = managersCache.find(x => x.id === id);
+  if (!confirm(`Text the manager invite to ${m.name} now?`)) return;
+  try {
+    await api(`/api/managers/${id}/invite`, { method: 'POST' });
+    document.getElementById('invite-status').textContent = 'Sent just now';
+    loadManagers();
+  } catch (e) {
+    if (e.message !== 'unauthorized') alert(e.message);
+  }
+}
+
 // ---------- Pending approvals ----------
 async function loadPending() {
   const rows = await api('/api/transactions?status=pending');
@@ -790,8 +866,9 @@ async function loadRules() {
       <td class="num strong">${fmtNum(r.points)}</td>
       <td class="num">${fmtMoney(r.dollar_value)}</td>
       <td>${r.show_on_profile !== false ? '<span class="tag ok">Shown</span>' : '<span class="tag off">Hidden</span>'}</td>
+      <td>${r.nominatable ? '<span class="tag ok">Yes</span>' : '<span class="dim">No</span>'}</td>
       <td class="actions"><button class="link" onclick="openRuleForm(${r.id})">Edit</button></td>
-    </tr>`).join('') || emptyRow(5, 'No rules yet. Add one for each anniversary or milestone you reward.');
+    </tr>`).join('') || emptyRow(6, 'No rules yet. Add one for each anniversary or milestone you reward.');
 }
 
 function openRuleForm(id) {
@@ -803,9 +880,10 @@ function openRuleForm(id) {
       ${field('f-rdollar', 'Dollar Value', `<input id="f-rdollar" type="number" value="${esc(r.dollar_value)}">`)}
     </div>
     ${field('f-rshow', 'Show on employee profiles', `<select id="f-rshow"><option value="true" ${r.show_on_profile !== false ? 'selected' : ''}>Yes — listed under "Earn points"</option><option value="false" ${r.show_on_profile === false ? 'selected' : ''}>No — hidden (not running this award yet)</option></select>`)}
+    ${field('f-rnom', 'Managers can nominate for this', `<select id="f-rnom"><option value="false" ${!r.nominatable ? 'selected' : ''}>No</option><option value="true" ${r.nominatable ? 'selected' : ''}>Yes, it's in the list on their nominating page and NOMINATE texts</option></select>`)}
     ${field('f-rnote', 'Note for employees <span class="hint">(optional — shown under this award on their profile)</span>', `<input id="f-rnote" value="${esc(r.note)}" placeholder="e.g. Must work 4+ shifts per week to be eligible">`)}
   `, async () => {
-    const payload = { event: val('f-event'), note: val('f-rnote'), points: Number(val('f-rpoints')), dollar_value: Number(val('f-rdollar')) || null, show_on_profile: val('f-rshow') === 'true' };
+    const payload = { event: val('f-event'), note: val('f-rnote'), points: Number(val('f-rpoints')), dollar_value: Number(val('f-rdollar')) || null, show_on_profile: val('f-rshow') === 'true', nominatable: val('f-rnom') === 'true' };
     if (id) await api(`/api/recognition-rules/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
     else await api('/api/recognition-rules', { method: 'POST', body: JSON.stringify(payload) });
     closeModal();

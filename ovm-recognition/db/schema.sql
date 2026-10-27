@@ -126,3 +126,28 @@ CREATE TABLE IF NOT EXISTS sms_log (
   body         TEXT,
   created_at   TIMESTAMPTZ DEFAULT now()
 );
+
+-- Managers who can nominate employees for awards (from their own page /n/<token>, or by
+-- texting NOMINATE). They don't see points or approve anything — every nomination goes
+-- to Pending Approvals.
+CREATE TABLE IF NOT EXISTS managers (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT NOT NULL,
+  phone       TEXT UNIQUE,            -- E.164, matched against inbound texts
+  status      TEXT DEFAULT 'Active',  -- Active / Inactive
+  token       TEXT UNIQUE,            -- secret code in their nominating link
+  invited_at  TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+-- Which awards managers can nominate for (Safety Champ, Above + Beyond, ...)
+ALTER TABLE recognition_rules ADD COLUMN IF NOT EXISTS nominatable BOOLEAN DEFAULT false;
+-- The manager who nominated an award (nominated_by keeps their name for the record)
+ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES managers(id);
+
+-- Where a manager is in a "text NOMINATE" conversation (who -> award -> what they did)
+CREATE TABLE IF NOT EXISTS sms_sessions (
+  phone       TEXT PRIMARY KEY,
+  step        TEXT NOT NULL,
+  data        JSONB DEFAULT '{}',
+  updated_at  TIMESTAMPTZ DEFAULT now()
+);

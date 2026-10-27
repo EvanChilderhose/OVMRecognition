@@ -24,6 +24,8 @@ const { safeEqual } = require('../lib/http');
 const { normalizePhone } = require('../lib/phone');
 const { sendTemplate } = require('../lib/messages');
 const { requestReward } = require('../lib/redeem');
+const { managerByPhone, textManager } = require('../lib/nominate');
+const { handleManagerText } = require('../lib/smsNominate');
 
 router.post('/ghl-sms', async (req, res) => {
   const expected = process.env.WEBHOOK_SECRET;
@@ -50,6 +52,13 @@ router.post('/ghl-sms', async (req, res) => {
       `INSERT INTO sms_log (employee_id, direction, phone, body) VALUES ($1, 'inbound', $2, $3)`,
       [employee ? employee.id : null, phone, text]
     );
+
+    // Managers (never employees): every text is about nominating
+    const manager = await managerByPhone(phone);
+    if (manager) {
+      if (!(await handleManagerText(manager, text, contactId))) await textManager('manager_help', {}, manager, { contactId });
+      return;
+    }
 
     if (!employee) {
       await sendTemplate('unknown_number', {}, { contactId, phone, name: body.name });

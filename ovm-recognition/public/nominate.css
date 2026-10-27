@@ -1,0 +1,65 @@
+/* Manager nominating page. Builds on me.css (same header, cards, buttons and sheets). */
+
+.top-sub { margin: 4px 0 0; font-size: 0.92rem; opacity: 0.92; }
+
+.nom-form { padding: 20px 18px 18px; display: flex; flex-direction: column; gap: 18px; }
+.nom-field { margin: 0; padding: 0; border: none; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.nom-label { font-weight: 700; font-size: 0.95rem; padding: 0; }
+
+.nom-form select,
+.nom-form textarea {
+  font: inherit;
+  font-size: 16px; /* 16px stops iPhones zooming in on tap */
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  width: 100%;
+  min-height: 48px;
+}
+.nom-form select { appearance: none; -webkit-appearance: none; padding-right: 40px;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236f6358' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") right 12px center / 18px no-repeat; }
+.nom-form textarea { resize: vertical; line-height: 1.4; }
+.nom-form select:focus, .nom-form textarea:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+
+/* Award choices: one tappable card each */
+.awards { display: flex; flex-direction: column; gap: 8px; }
+.award {
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  background: var(--surface);
+  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+}
+.award input { position: absolute; opacity: 0; pointer-events: none; }
+.award-dot { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface); }
+.award-text { flex: 1; min-width: 0; }
+.award-name { display: block; font-weight: 600; }
+.award-note { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 1px; }
+.award-pts { flex: none; font-weight: 700; font-size: 0.85rem; color: var(--red); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.award:has(input:checked) { border-color: var(--red); background: var(--red-tint); }
+.award:has(input:checked) .award-dot { border-color: var(--red); background: radial-gradient(circle, var(--red) 0 45%, var(--surface) 50%); }
+.award:has(input:focus-visible) { outline: 2px solid var(--red); outline-offset: 2px; }
+
+.nom-send { margin-top: 2px; }
+.nom-send:disabled { opacity: 0.6; }
+.nom-hint { margin: -6px 0 0; text-align: center; color: var(--muted); font-size: 0.8rem; }
+
+.nom-heading { font-size: 1.05rem; margin: 28px 2px 10px; }
+.h-note { color: var(--muted); font-size: 0.82rem; margin-top: 4px; overflow-wrap: anywhere; }
+
+.nom-optional { font-weight: 400; color: var(--muted); }
+/* Custom amount: the points box appears under the Custom card once it's picked */
+.custom-points { display: none; align-items: center; gap: 10px; margin: 2px 0 0 32px; }
+.awards:has(input[value="custom"]:checked) .custom-points { display: flex; }
+.custom-points input {
+  font: inherit; font-size: 16px; width: 110px; min-height: 44px; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.custom-points input:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+.custom-points span { color: var(--muted); font-size: 0.85rem; }

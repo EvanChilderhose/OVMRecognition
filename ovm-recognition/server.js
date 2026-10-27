@@ -28,8 +28,10 @@ app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/monthly', require('./routes/monthly'));
 app.use('/api/texts', require('./routes/texts'));
 app.use('/api/broadcast', require('./routes/broadcast'));
+app.use('/api/managers', require('./routes/managers'));
 app.use('/webhook', require('./routes/webhook'));
 app.use(require('./routes/profile')); // employee profile pages: /me/<token> (outside /api, so no passcode)
+app.use(require('./routes/nominate')); // managers' nominating pages: /n/<token> (outside /api, so no passcode)
 app.use(require('./routes/rewards').imageRouter); // reward photos: /reward-image/<id>
 
 app.use(express.static(path.join(__dirname, 'public')));

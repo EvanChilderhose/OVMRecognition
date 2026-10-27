@@ -19,6 +19,13 @@ function readEmployee(body) {
     status === 'Inactive' ? 'Inactive' : 'Active'];
 }
 
+// Managers aren't in the rewards program, so an employee can't use a manager's number
+async function notAManager(phone) {
+  if (!phone) return;
+  const m = (await pool.query('SELECT name FROM managers WHERE phone = $1', [phone])).rows[0];
+  if (m) throw httpError(409, `That number belongs to ${m.name} on the Managers tab. Managers aren't in the rewards program.`);
+}
+
 function duplicatePhone(err) {
   if (err.code === '23505') return httpError(409, 'That phone number is already in use by another employee.');
   return err;
@@ -45,6 +52,7 @@ async function sendWelcome(employee, force) {
 // Add a new employee. If the welcome text is switched on, they get it straight away.
 router.post('/', wrap(async (req, res) => {
   const values = readEmployee(req.body);
+  await notAManager(values[1]);
   let employee;
   try {
     const result = await pool.query(
@@ -86,6 +94,7 @@ router.post('/welcome-all', wrap(async (req, res) => {
 // Update an employee
 router.put('/:id', wrap(async (req, res) => {
   const values = readEmployee(req.body);
+  await notAManager(values[1]);
   let result;
   try {
     result = await pool.query(

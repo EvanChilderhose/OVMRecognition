@@ -69,6 +69,12 @@ const RULES_HIDDEN_AT_START = [
   'Most Picked/Packed - Month', 'No Error Month'
 ];
 
+// Awards managers can nominate for at the start (changeable under Recognition Rules)
+const RULES_MANAGERS_CAN_NOMINATE = [
+  'Safety Champ', 'Above + Beyond', 'Major Improvement',
+  '5-Star Review Mentioning Your Name', 'Difficult Interaction Well Handled'
+];
+
 // Runs fn once per database (tracked in app_setup_done)
 async function once(key, fn) {
   const done = (await pool.query('SELECT 1 FROM app_setup_done WHERE key = $1', [key])).rows.length > 0;
@@ -161,6 +167,14 @@ async function seedIfEmpty() {
       `UPDATE recognition_rules SET note = $1 WHERE event = ANY($2) AND note IS NULL`,
       ['Must work 4+ shifts per week to be eligible', ['Best Monthly Attendance', 'Least Lates', 'Most Early']]
     );
+  });
+
+  await once('nominatable-rules-2026-10', async () => {
+    const marked = await pool.query(
+      'UPDATE recognition_rules SET nominatable = true WHERE event = ANY($1)',
+      [RULES_MANAGERS_CAN_NOMINATE]
+    );
+    if (marked.rowCount) say(`Let managers nominate for ${marked.rowCount} awards`);
   });
 
   await once('hide-unused-rules-2026-10', async () => {

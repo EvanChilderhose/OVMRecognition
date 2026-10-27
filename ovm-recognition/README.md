@@ -111,6 +111,17 @@ sections in order.
 Open your Render URL, enter the passcode you set, and you'll see:
 - **Employees** — add/edit staff, their phone number (needed for texts),
   birthday, and start date.
+- **Managers** — people who can nominate employees for awards. Add their
+  name and mobile number, then open them and click **Send invite**: they get
+  a text with their private nominating page (/n/<code>) and the "save our
+  number" contact card. They can nominate from that page or by text, all at once
+  ("NOMINATE Kenny for Above + Beyond for cleaning up the warehouse") or step by
+  step ("NOMINATE Kenny", then the app asks which award, with an optional reason).
+  "Custom" lets them suggest their own points (up to 1,000, set by
+  MAX_CUSTOM_POINTS in lib/nominate.js) with a reason. Managers are never
+  employees. Only awards
+  marked **Managers can nominate** under Recognition Rules are offered. Every
+  nomination goes to Pending Approvals and texts ADMIN_PHONE.
 - **Pending Approvals** — anything waiting on a manager: awards you or a
   coworker nominated, auto-detected birthdays/anniversaries, and reward
   redemptions employees requested by text. Approve or deny each one.
