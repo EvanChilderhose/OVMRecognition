@@ -30,7 +30,7 @@ async function managerForToken(token) {
   return (await pool.query(`SELECT * FROM managers WHERE token = $1 AND status = 'Active'`, [token])).rows[0] || null;
 }
 
-const PAGE = fs.readFileSync(path.join(__dirname, '..', 'public', 'nominate.html'), 'utf8');
+const PAGE = require('../lib/version').versioned(fs.readFileSync(path.join(__dirname, '..', 'public', 'nominate.html'), 'utf8'));
 router.get('/n/:token', (req, res) => {
   privateHeaders(res);
   const base = appUrl() || `https://${req.get('host')}`;

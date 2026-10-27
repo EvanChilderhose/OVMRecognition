@@ -34,6 +34,15 @@ app.use(require('./routes/profile')); // employee profile pages: /me/<token> (ou
 app.use(require('./routes/nominate')); // managers' nominating pages: /n/<token> (outside /api, so no passcode)
 app.use(require('./routes/rewards').imageRouter); // reward photos: /reward-image/<id>
 
+// The dashboard page, with versioned script/style links (lib/version.js)
+const fs = require('fs');
+const { versioned } = require('./lib/version');
+const DASHBOARD = versioned(fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8'));
+app.get(['/', '/index.html'], (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(DASHBOARD);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/health', (req, res) => res.json({ ok: true }));

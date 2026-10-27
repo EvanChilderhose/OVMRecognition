@@ -93,7 +93,10 @@
           <h2>Managers</h2>
           <p class="panel-sub">People who can nominate employees for awards, from their own page or by texting NOMINATE. Every nomination comes to Pending Approvals.</p>
         </div>
-        <button onclick="openManagerForm()">Add Manager</button>
+        <div class="header-actions">
+          <button class="secondary" onclick="openManagerMessage()">Text managers</button>
+          <button onclick="openManagerForm()">Add Manager</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table id="managers-table">

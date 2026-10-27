@@ -661,6 +661,97 @@ async function sendManagerInvite(id) {
   }
 }
 
+// ---------- Text managers ----------
+// How to save their nominating page as an app icon (fills the message box)
+const MANAGER_APP_TIP = 'Quick tip to make nominating easier: save your manager page to your home screen so it opens like an app.\n\n' +
+  'Your manager page: {manager_link}\n\n' +
+  'iPhone: open the link in Safari, tap the Share button at the bottom, then tap "Add to Home Screen" and "Add".\n\n' +
+  'Android: open the link in Chrome, tap the three dots at the top right, then tap "Add to Home screen" (or "Install app") and "Add".\n\n' +
+  'The OVM icon will show up on your home screen and open straight to nominating. You can also just text NOMINATE to this number anytime.';
+
+function tmRecipients() {
+  const ids = [...document.querySelectorAll('.tm-person:checked')].map(c => Number(c.value));
+  return managersCache.filter(m => ids.includes(m.id));
+}
+
+function tmUpdate() {
+  const who = tmRecipients();
+  const body = document.getElementById('tm-body').value;
+  const sample = who[0] || { name: 'Sam Sample', token: 'abc123' };
+  const link = `${location.origin}/n/${sample.token}`;
+  let text = body.replace(/\{first_name\}/g, sample.name.split(' ')[0]).replace(/\{manager_link\}/g, link);
+  if (document.getElementById('tm-link').checked && body.trim() && !body.includes('{manager_link}')) text += `\n\nYour manager page: ${link}`;
+  document.getElementById('tm-preview').textContent = text || 'Your message will appear here.';
+  document.getElementById('tm-preview-who').textContent = who[0] ? 'Preview for ' + who[0].name : 'Preview';
+  const n = [...text].length;
+  document.getElementById('tm-count').textContent = n + ' characters' + (n > 160 ? ' · sends as ' + Math.ceil(n / 153) + ' parts' : '');
+  document.getElementById('modal-save').textContent = who.length ? 'Send to ' + who.length + (who.length === 1 ? ' manager' : ' managers') : 'Send';
+}
+
+function tmUseAppTip() {
+  document.getElementById('tm-body').value = MANAGER_APP_TIP;
+  tmUpdate();
+}
+
+async function openManagerMessage() {
+  try { managersCache = await api('/api/managers'); } catch (e) { if (e.message !== 'unauthorized') alert(e.message); return; }
+  const active = managersCache.filter(m => m.status !== 'Inactive' && m.phone);
+  if (!active.length) return alert('Add a manager first.');
+  const boxes = active.map(m => `<label><input type="checkbox" class="tm-person" value="${m.id}" checked onchange="tmUpdate()"> ${esc(m.name)}</label>`).join('');
+  showModal('Text managers', `
+    <div class="field">
+      <label>Who gets it <span class="hint">(untick anyone to leave them out)</span></label>
+      <div class="bc-list">${boxes}</div>
+    </div>
+    ${field('tm-body', 'Message <span class="hint">({first_name} and {manager_link} are filled in for each manager)</span>', '<textarea id="tm-body" rows="6" oninput="tmUpdate()" placeholder="Hi {first_name}! ..."></textarea>')}
+    <div class="text-actions">
+      <button type="button" class="secondary small" onclick="tmUseAppTip()">Use the "save as an app" tip</button>
+    </div>
+    <label class="bc-check"><input type="checkbox" id="tm-link" checked onchange="tmUpdate()"> Add their manager page link at the end</label>
+    <div>
+      <p class="hint-text" id="tm-preview-who">Preview</p>
+      <div class="text-preview" id="tm-preview"></div>
+      <p class="hint-text" id="tm-count"></p>
+    </div>
+    <div class="text-actions">
+      <button type="button" class="secondary small" onclick="tmTest()">Send me a test first</button>
+      <span class="text-status" id="tm-status" role="status"></span>
+    </div>
+  `, async () => {
+    const who = tmRecipients();
+    const body = document.getElementById('tm-body').value;
+    if (!who.length) throw new Error('Choose who should get the message.');
+    if (!body.trim()) throw new Error('Write a message first.');
+    if (!confirm('Send this message to ' + who.length + (who.length === 1 ? ' manager' : ' managers') + '?\n\n' + who.map(m => m.name).join(', '))) return;
+    const btn = document.getElementById('modal-save');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    try {
+      const r = await api('/api/managers/message', { method: 'POST', body: JSON.stringify({ manager_ids: who.map(m => m.id), body, include_link: document.getElementById('tm-link').checked }) });
+      closeModal();
+      alert('Sent to ' + r.sent + (r.sent === 1 ? ' manager.' : ' managers.') + (r.failed.length ? "\nDidn't send to: " + r.failed.join(', ') + '.' : ''));
+    } finally {
+      btn.disabled = false;
+      tmUpdate();
+    }
+  });
+  document.querySelector('.modal').classList.add('wide');
+  tmUpdate();
+  document.getElementById('tm-body').focus();
+}
+
+async function tmTest() {
+  const status = document.getElementById('tm-status');
+  status.textContent = 'Sending…';
+  status.classList.remove('error');
+  try {
+    await api('/api/managers/message/test', { method: 'POST', body: JSON.stringify({ body: document.getElementById('tm-body').value, include_link: document.getElementById('tm-link').checked }) });
+    status.textContent = 'Test sent to your phone';
+  } catch (e) {
+    if (e.message !== 'unauthorized') { status.textContent = e.message; status.classList.add('error'); }
+  }
+}
+
 // ---------- Pending approvals ----------
 async function loadPending() {
   const rows = await api('/api/transactions?status=pending');

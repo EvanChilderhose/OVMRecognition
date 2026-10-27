@@ -119,7 +119,9 @@ Open your Render URL, enter the passcode you set, and you'll see:
   step ("NOMINATE Kenny", then the app asks which award, with an optional reason).
   "Custom" lets them suggest their own points (up to 1,000, set by
   MAX_CUSTOM_POINTS in lib/nominate.js) with a reason. Managers are never
-  employees. Only awards
+  employees. **Text managers** (Managers tab) sends a one-off text to the managers
+  you tick, with {first_name} and {manager_link} filled in; it has a ready-made
+  "save as an app" tip. Only awards
   marked **Managers can nominate** under Recognition Rules are offered. Every
   nomination goes to Pending Approvals and texts ADMIN_PHONE.
 - **Pending Approvals** — anything waiting on a manager: awards you or a

@@ -46,7 +46,7 @@ async function employeeForToken(token) {
 
 // The page itself — a static file that loads its data from the API below.
 // The link-preview tags need the app's full address, so it's filled in here.
-const PAGE = fs.readFileSync(path.join(__dirname, '..', 'public', 'me.html'), 'utf8');
+const PAGE = require('../lib/version').versioned(fs.readFileSync(path.join(__dirname, '..', 'public', 'me.html'), 'utf8'));
 router.get('/me/:token', (req, res) => {
   privateHeaders(res);
   const base = appUrl() || `https://${req.get('host')}`;

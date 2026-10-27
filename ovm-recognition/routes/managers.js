@@ -7,7 +7,9 @@ const pool = require('../db/pool');
 const { wrap, httpError } = require('../lib/http');
 const { normalizePhone } = require('../lib/phone');
 const { newProfileToken } = require('../lib/profile');
-const { sendInvite } = require('../lib/nominate');
+const { sendInvite, ensureManagerToken, managerUrl, firstName } = require('../lib/nominate');
+const { sendSMS } = require('../lib/ghl');
+const { fill, placeholdersOf, adminPhones } = require('../lib/messages');
 
 function readManager(body) {
   const { name, phone, status } = body;
@@ -79,6 +81,70 @@ router.post('/:id/reset-link', wrap(async (req, res) => {
   const result = await pool.query('UPDATE managers SET token = $1 WHERE id = $2 RETURNING *', [newProfileToken(), req.params.id]);
   if (!result.rows.length) throw httpError(404, 'Manager not found');
   res.json(result.rows[0]);
+}));
+
+// ---------- "Text managers": a one-off message to the managers you pick ----------
+// {first_name} and {manager_link} are filled in for each manager, and their
+// page link can be added at the end.
+
+const MSG_ALLOWED = ['first_name', 'manager_link'];
+const MSG_MAX = 800;
+
+function checkMessage(body) {
+  const text = String(body || '').trim();
+  if (!text) throw httpError(400, 'Write a message first.');
+  if (text.length > MSG_MAX) throw httpError(400, `That message is very long (${MSG_MAX} characters max).`);
+  const unknown = placeholdersOf(text).filter(p => !MSG_ALLOWED.includes(p));
+  if (unknown.length) throw httpError(400, `Messages can't fill in {${unknown.join('}, {')}}. You can use {first_name} or {manager_link}.`);
+  return text;
+}
+
+function managerMessage(text, manager, link, includeLink) {
+  let message = fill(text, { first_name: firstName(manager.name), manager_link: link }).trim();
+  if (includeLink && link && !text.includes('{manager_link}')) message += `\n\nYour manager page: ${link}`;
+  return message;
+}
+
+// Test: sends it, filled in with sample details, to your phone
+router.post('/message/test', wrap(async (req, res) => {
+  const text = checkMessage(req.body.body);
+  const phone = adminPhones()[0];
+  if (!phone) throw httpError(400, 'Add your number as ADMIN_PHONE in Render to receive test texts.');
+  if (!process.env.GHL_API_KEY) throw httpError(400, 'Texting isn\'t set up (GHL_API_KEY is missing in Render).');
+  const message = '[TEST] ' + managerMessage(text, { name: 'Sam Sample' }, managerUrl({ token: 'abc123' }) || 'https://ovmrecognition.onrender.com/n/abc123', req.body.include_link !== false);
+  try {
+    await sendSMS({ phone, name: 'OVM Manager', message });
+  } catch (err) {
+    throw httpError(502, `GoHighLevel didn't send it: ${err.response?.data?.message || err.message}`);
+  }
+  res.json({ ok: true });
+}));
+
+// Send to the chosen managers
+router.post('/message', wrap(async (req, res) => {
+  const text = checkMessage(req.body.body);
+  const ids = [...new Set((req.body.manager_ids || []).map(Number).filter(Number.isInteger))];
+  if (!ids.length) throw httpError(400, 'Choose who should get the message.');
+  if (!process.env.GHL_API_KEY) throw httpError(400, 'Texting isn\'t set up (GHL_API_KEY is missing in Render).');
+  const managers = (await pool.query(
+    `SELECT * FROM managers WHERE id = ANY($1) AND status = 'Active' AND phone IS NOT NULL ORDER BY name`, [ids]
+  )).rows;
+
+  let sent = 0;
+  const failed = [];
+  for (let manager of managers) {
+    try {
+      manager = await ensureManagerToken(manager);
+      const message = managerMessage(text, manager, managerUrl(manager), req.body.include_link !== false);
+      await sendSMS({ phone: manager.phone, name: manager.name, message });
+      await pool.query(`INSERT INTO sms_log (direction, phone, body) VALUES ('outbound', $1, $2)`, [manager.phone, message]);
+      sent++;
+    } catch (err) {
+      console.error(`Message to ${manager.name} failed:`, err.message);
+      failed.push(manager.name);
+    }
+  }
+  res.json({ sent, failed });
 }));
 
 module.exports = router;
