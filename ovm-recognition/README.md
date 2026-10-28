@@ -53,6 +53,10 @@ sections in order.
    - `TEXTING_NUMBER` — the GoHighLevel number employees get texts from
      (e.g. `613-555-1234`). Used for the "save our number as OVM Rewards"
      contact card in the welcome text, on profiles, and when they text CONTACT.
+   - `UPDATES_NUMBER` — optional: a second GoHighLevel number for team news
+     (the **OVM Updates** tab). See "OVM Updates number" in step 3. When it's
+     set, `TEXTING_NUMBER` must be set too, so rewards texts stay on the
+     rewards number.
    - `APP_URL` — your Render address, e.g. `https://ovm-recognition.onrender.com`.
      Used to build each employee's "View your awards profile" link in texts.
      Optional on Render (it fills this in automatically), but set it if you
@@ -106,6 +110,23 @@ sections in order.
    someone else's points.
 6. Save and publish the workflow.
 
+**OVM Updates number (optional, for team news):**
+1. In GHL, go to **Settings -> Phone Numbers -> Add Number** and buy a second
+   local number. Leave your rewards number as the default.
+2. In Render, set `UPDATES_NUMBER` to the new number, and make sure
+   `TEXTING_NUMBER` (rewards number) and `ADMIN_PHONE` (your cell) are set.
+   Redeploy.
+3. The webhook workflow above already covers replies to the new number. If the
+   merge-field picker in the Webhook body offers the number that was texted,
+   add it as `"to": "{{...}}"`. That tells replies to OVM Updates apart for
+   certain. Without it, the app goes by which number texted that person last
+   (in the past week), and POINTS / REDEEM / CONTACT always go to rewards.
+
+Each employee's first update starts with a line asking them to save the
+number as **OVM Updates 📣**, with a one-tap contact card (`/updates.vcf`).
+Replies get no automatic answer: they're texted to `ADMIN_PHONE` and listed on
+the OVM Updates tab. The wording of both is on the Texts tab.
+
 ## 4. Using the dashboard
 
 Open your Render URL, enter the passcode you set, and you'll see:
@@ -129,6 +150,8 @@ Open your Render URL, enter the passcode you set, and you'll see:
   redemptions employees requested by text. Approve or deny each one.
 - **Rewards** and **Recognition Rules** — edit the point values, matching
   your spreadsheet.
+- **OVM Updates** — text team news to everyone (or chosen people) from the
+  OVM Updates number, send yourself a test first, and see replies.
 - **Transaction Log** — full history.
 
 **What employees can text:**
