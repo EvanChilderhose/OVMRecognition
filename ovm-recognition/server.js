@@ -4,6 +4,16 @@ const path = require('path');
 const { safeEqual } = require('./lib/http');
 
 const app = express();
+app.set('trust proxy', 1); // Render sits in front of the app; this gives the real visitor IP
+
+// Standard browser protections on every response
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY'); // no showing the app inside another site
+  res.set('Referrer-Policy', res.get('Referrer-Policy') || 'same-origin');
+  res.set('Strict-Transport-Security', 'max-age=31536000');
+  next();
+});
 // JSON bodies are capped at 100 KB, except reward photo uploads, which parse
 // their own (larger) body in routes/rewards.js
 const smallJson = express.json();
@@ -16,8 +26,15 @@ app.use((req, res, next) => (/^\/api\/rewards\/\d+\/image$/.test(req.path) ? nex
 app.use((req, res, next) => {
   if (!process.env.DASHBOARD_PASSCODE) return next();
   if (req.path.startsWith('/webhook/')) return next(); // protected by WEBHOOK_SECRET instead
+  const { passcodeTries } = require('./lib/limits');
+  if (req.path.startsWith('/api/') && passcodeTries.blocked(req.ip)) {
+    return res.status(429).json({ error: 'Too many wrong passcodes. Wait 15 minutes and try again.' });
+  }
   if (safeEqual(req.headers['x-passcode'], process.env.DASHBOARD_PASSCODE)) return next();
-  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Missing or wrong passcode' });
+  if (req.path.startsWith('/api/')) {
+    if (req.headers['x-passcode']) passcodeTries.record(req.ip); // count wrong guesses, not empty checks
+    return res.status(401).json({ error: 'Missing or wrong passcode' });
+  }
   next(); // let index.html load; the frontend itself will prompt for the passcode before calling the API
 });
 

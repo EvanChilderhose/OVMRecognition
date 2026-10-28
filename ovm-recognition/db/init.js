@@ -123,6 +123,18 @@ async function migrate() {
     }
   }
 
+  // Supabase can also serve every table through its own web API. This app never
+  // uses that, so switch on row level security (with no rules) to close it off.
+  // The app itself connects as the tables' owner, which isn't affected.
+  try {
+    await pool.query(`DO $rls$ DECLARE r record; BEGIN
+      FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND NOT rowsecurity LOOP
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.tablename);
+      END LOOP; END $rls$`);
+  } catch (err) {
+    say(`Warning: couldn't switch on row level security: ${err.message}`);
+  }
+
   return log;
 }
 

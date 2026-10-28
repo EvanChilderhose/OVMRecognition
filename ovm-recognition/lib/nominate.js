@@ -75,6 +75,8 @@ const cashFor = points => '$' + (points * DOLLARS_PER_POINT).toLocaleString('en-
 // Either ruleId (one of the nominatable awards) or custom: true with points and a reason.
 // Returns { employee, award, points }.
 async function createNomination(manager, { employeeId, ruleId, note, custom, points }) {
+  const { nominations } = require('./limits');
+  if (nominations.blocked(manager.id)) throw new NominationError('That\'s a lot of nominations in one hour. Please try again a bit later.');
   note = String(note || '').trim();
   if (note.length > 600) throw new NominationError('Keep the reason under 600 characters.');
   const employee = (await pool.query(`SELECT * FROM employees WHERE id = $1 AND status = 'Active'`, [employeeId])).rows[0];
@@ -104,6 +106,8 @@ async function createNomination(manager, { employeeId, ruleId, note, custom, poi
      VALUES ($1, 'award', $2, $3, 'pending', $4, $5, $6)`,
     [employee.id, award, points, notes, manager.name, manager.id]
   );
+
+  require('./limits').nominations.record(manager.id);
 
   // No alert when the program manager nominates from their own manager account
   if (!adminPhones().includes(manager.phone)) {
