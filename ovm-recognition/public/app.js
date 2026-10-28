@@ -85,6 +85,12 @@ async function loadUpdates() {
     const n = people.filter(p => p.group === box.value).length;
     box.nextElementSibling.textContent = `${UP_GROUPS[box.value]} (${n})`;
   }
+  // Departments (Warehouse, CSR, ...): send to one part of the team instead of all employees
+  const depts = [...new Set(people.filter(p => p.group === 'employees' && p.detail).map(p => p.detail))].sort();
+  const deptsTicked = new Set([...document.querySelectorAll('.up-dept:checked')].map(c => c.value));
+  const deptEl = document.getElementById('up-depts');
+  deptEl.innerHTML = depts.length > 1 ? '<span class="up-depts-label">Or just:</span>' + depts.map(d => `<label class="bc-check"><input type="checkbox" class="up-dept" value="${esc(d)}" ${deptsTicked.has(d) ? 'checked' : ''} onchange="upPickDept(this)"> ${esc(d)} (${people.filter(p => p.group === 'employees' && p.detail === d).length})</label>`).join('') : '';
+  deptEl.classList.toggle('hidden', depts.length < 2);
   // "Choose people": everyone, under a heading per group
   document.getElementById('up-people').innerHTML = Object.entries(UP_GROUPS).map(([group, label]) => {
     const inGroup = people.filter(p => p.group === group);
@@ -134,13 +140,25 @@ function upRecipients() {
   let chosen;
   if (document.querySelector('input[name=up-mode]:checked').value === 'groups') {
     const groups = [...document.querySelectorAll('.up-group:checked')].map(c => c.value);
-    chosen = people.filter(p => groups.includes(p.group));
+    const depts = [...document.querySelectorAll('.up-dept:checked')].map(c => c.value);
+    chosen = people.filter(p => groups.includes(p.group) || (p.group === 'employees' && depts.includes(p.detail)));
   } else {
     const keys = [...document.querySelectorAll('.up-person:checked')].map(c => c.value);
     chosen = people.filter(p => keys.includes(p.key));
   }
   const seen = new Set();
   return chosen.filter(p => !seen.has(p.phone) && seen.add(p.phone));
+}
+
+// Employees and single departments are either/or: ticking one clears the other
+function upPickGroup(box) {
+  if (box.checked) document.querySelectorAll('.up-dept').forEach(c => { c.checked = false; });
+  upUpdate();
+}
+
+function upPickDept(box) {
+  if (box.checked) document.querySelector('.up-group[value=employees]').checked = false;
+  upUpdate();
 }
 
 function upUpdate() {

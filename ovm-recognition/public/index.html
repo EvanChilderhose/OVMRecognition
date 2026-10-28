@@ -191,9 +191,12 @@
               <label><input type="radio" name="up-mode" value="pick" onchange="upUpdate()"> Choose people</label>
             </div>
             <div id="up-groups" class="up-groups">
-              <label class="bc-check"><input type="checkbox" class="up-group" value="employees" checked onchange="upUpdate()"> <span>Employees</span></label>
-              <label class="bc-check"><input type="checkbox" class="up-group" value="managers" onchange="upUpdate()"> <span>Managers</span></label>
-              <label class="bc-check"><input type="checkbox" class="up-group" value="other" onchange="upUpdate()"> <span>Other staff</span></label>
+              <div class="up-group-row">
+                <label class="bc-check"><input type="checkbox" class="up-group" value="employees" checked onchange="upPickGroup(this)"> <span>Employees</span></label>
+                <label class="bc-check"><input type="checkbox" class="up-group" value="managers" onchange="upUpdate()"> <span>Managers</span></label>
+                <label class="bc-check"><input type="checkbox" class="up-group" value="other" onchange="upUpdate()"> <span>Other staff</span></label>
+              </div>
+              <div class="up-group-row hidden" id="up-depts"></div>
             </div>
             <div id="up-people" class="bc-list hidden"></div>
             <p id="up-nophone" class="hint-text hidden"></p>
