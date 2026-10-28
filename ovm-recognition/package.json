@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Ottawa Valley Meats employee recognition dashboard + SMS integration",
   "main": "server.js",
+  "engines": {
+    "node": ">=24.22.1 <25"
+  },
   "scripts": {
     "start": "node server.js",
     "init-db": "node db/init.js"
