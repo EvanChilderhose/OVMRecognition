@@ -106,7 +106,8 @@ async function checkContact({ name, phone }) {
   if (!name || !String(name).trim()) throw httpError(400, 'Add their name.');
   const normalized = normalizePhone(phone);
   if (!normalized) throw httpError(400, 'Add their mobile number (10 digits, like 613-555-1234).');
-  const emp = (await pool.query('SELECT name FROM employees WHERE phone = $1', [normalized])).rows[0];
+  // Inactive employees can be added: they're out of rewards but may still want updates
+  const emp = (await pool.query(`SELECT name FROM employees WHERE phone = $1 AND COALESCE(status, 'Active') <> 'Inactive'`, [normalized])).rows[0];
   if (emp) throw httpError(409, `That number belongs to ${emp.name}, who's already under Employees.`);
   const mgr = (await pool.query('SELECT name FROM managers WHERE phone = $1', [normalized])).rows[0];
   if (mgr) throw httpError(409, `That number belongs to ${mgr.name}, who's already under Managers.`);
