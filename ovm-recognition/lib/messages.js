@@ -11,7 +11,7 @@ const pool = require('../db/pool');
 const { sendSMS } = require('./ghl');
 const { profileUrl, ensureProfileToken, appUrl } = require('./profile');
 const { normalizePhone } = require('./phone');
-const { contactCardUrl, CONTACT_NAME } = require('./contactCard');
+const { contactCardUrl, CONTACT_NAME, updatesCardUrl, updatesNumber } = require('./contactCard');
 
 // Shown in the dashboard in this order. `sample` fills the placeholders for
 // previews and test texts. `toEmployee: false` texts don't get the profile link.
@@ -114,6 +114,11 @@ const TEXTS = [
     body: 'No problem, that nomination is cancelled.',
     sample: {} },
 
+  { key: 'updates_intro', group: 'OVM Updates', label: 'First update: save this number', toEmployee: false, from: 'updates',
+    when: 'Added to the top of the first OVM Updates text each employee gets, so they save the new number. Needs UPDATES_NUMBER set in Render.',
+    body: '📣 This is OVM Updates, Ottawa Valley Meats\' new number for team news. Tap to save it in your contacts as OVM Updates 📣:\n{updates_contact_url}',
+    sample: { updates_contact_url: 'https://ovmrecognition.onrender.com/updates.vcf' } },
+
   { key: 'profile_footer', group: 'Added to every employee text', label: 'Profile link line', footer: true,
     when: 'Added to the end of every text sent to an employee.',
     body: 'View your awards profile: {profile_link}',
@@ -134,7 +139,11 @@ const TEXTS = [
   { key: 'admin_month_end', group: 'To you (the manager)', label: 'Month-end reminder', toEmployee: false,
     when: 'Texted to ADMIN_PHONE at 10 AM on the last day of each month.',
     body: 'Month end! Time to pick {month}\'s Employee of the Month and run the monthly awards: {dashboard_link}',
-    sample: { month: 'October 2026', dashboard_link: 'https://ovm-recognition.onrender.com' } }
+    sample: { month: 'October 2026', dashboard_link: 'https://ovm-recognition.onrender.com' } },
+  { key: 'admin_update_reply', group: 'To you (the manager)', label: 'OVM Updates reply', toEmployee: false, from: 'updates',
+    when: 'Texted to ADMIN_PHONE (from the OVM Updates number) each time someone replies to an OVM Updates text.',
+    body: '💬 {name} replied to OVM Updates:\n"{message}"',
+    sample: { name: 'Karlyn Babcock', message: 'Sounds good, see you Friday!' } }
 ];
 
 const BY_KEY = Object.fromEntries(TEXTS.map(t => [t.key, t]));
@@ -171,6 +180,8 @@ function render(body, vars = {}, employee = null, footer = null) {
   const card = contactCardUrl();
   if (all.contact_url === undefined) all.contact_url = card || '';
   if (all.contact_link === undefined) all.contact_link = card ? `📇 Save our number in your contacts as ${CONTACT_NAME}: ${card}` : '';
+  // {updates_contact_url}: the OVM Updates contact card (empty if UPDATES_NUMBER isn't set)
+  if (all.updates_contact_url === undefined) all.updates_contact_url = updatesCardUrl() || '';
   let text = fill(body, all).replace(/\n{3,}/g, '\n\n').trim();
   if (link && footer) text += '\n\n' + fill(footer, { profile_link: link });
   return text;
@@ -181,14 +192,17 @@ function render(body, vars = {}, employee = null, footer = null) {
 // unless options.force is set (e.g. a manager clicking "Send welcome text").
 // Returns the text that was sent, or null if nothing was sent.
 // target: { employee } for a known employee, or { phone, name, contactId } otherwise.
+// Texts marked `from: 'updates'` go out from the OVM Updates number.
 async function sendTemplate(key, vars, target, options = {}) {
   const phone = target.employee ? target.employee.phone : target.phone;
   if (!phone || !process.env.GHL_API_KEY) return null;
   let employee = target.employee || null;
   let message = null;
+  const line = BY_KEY[key].from === 'updates' ? 'updates' : 'rewards';
   try {
     const template = await getTemplate(key);
     if (!template.enabled && !options.force) return null;
+    if (line === 'updates' && !updatesNumber()) return null;
     let footer = null;
     if (employee && BY_KEY[key].toEmployee !== false) {
       employee = await ensureProfileToken(employee); // first text creates their profile link
@@ -196,10 +210,11 @@ async function sendTemplate(key, vars, target, options = {}) {
       if (f.enabled) footer = f.body;
     }
     message = render(template.body, vars, employee, footer);
-    await sendSMS({ contactId: target.contactId, phone, name: employee ? employee.name : target.name, message });
+    await sendSMS({ contactId: target.contactId, phone, name: employee ? employee.name : target.name, message,
+      fromNumber: line === 'updates' ? updatesNumber() : undefined });
     await pool.query(
-      `INSERT INTO sms_log (employee_id, direction, phone, body) VALUES ($1, 'outbound', $2, $3)`,
-      [employee ? employee.id : null, phone, message]
+      `INSERT INTO sms_log (employee_id, direction, phone, body, line) VALUES ($1, 'outbound', $2, $3, $4)`,
+      [employee ? employee.id : null, phone, message, line]
     );
   } catch (err) {
     console.error(`Failed to send "${key}" text:`, err.message);

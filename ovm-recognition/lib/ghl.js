@@ -12,6 +12,7 @@
 
 const axios = require('axios');
 require('dotenv').config();
+const { normalizePhone } = require('./phone');
 
 const BASE_URL = 'https://services.leadconnectorhq.com';
 const API_VERSION = '2021-07-28';
@@ -44,7 +45,11 @@ async function findOrCreateContact(phone, name) {
 
 // Sends an SMS to a contact. Pass either a known contactId, or a
 // {phone, name} pair to look up/create the contact first.
-async function sendSMS({ contactId, phone, name, message }) {
+// fromNumber picks which of OVM's GHL numbers it comes from (e.g. the OVM
+// Updates number). Left out, it's TEXTING_NUMBER (the rewards number) once a
+// second number (UPDATES_NUMBER) exists, otherwise GHL's default number.
+async function sendSMS({ contactId, phone, name, message, fromNumber }) {
+  if (!fromNumber && process.env.UPDATES_NUMBER) fromNumber = normalizePhone(process.env.TEXTING_NUMBER) || undefined;
   let toContactId = contactId;
   if (!toContactId) {
     toContactId = await findOrCreateContact(phone, name);
@@ -52,7 +57,8 @@ async function sendSMS({ contactId, phone, name, message }) {
   const res = await client.post('/conversations/messages', {
     type: 'SMS',
     contactId: toContactId,
-    message
+    message,
+    ...(fromNumber ? { fromNumber } : {})
   });
   return res.data;
 }
