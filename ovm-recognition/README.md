@@ -150,8 +150,10 @@ Open your Render URL, enter the passcode you set, and you'll see:
   redemptions employees requested by text. Approve or deny each one.
 - **Rewards** and **Recognition Rules** — edit the point values, matching
   your spreadsheet.
-- **OVM Updates** — text team news to everyone (or chosen people) from the
-  OVM Updates number, send yourself a test first, and see replies.
+- **OVM Updates** — text team news from the OVM Updates number to any mix of
+  Employees, Managers and Other staff (or chosen people), send yourself a test
+  first, and see replies. Add people who get updates but aren't in the rewards
+  program under **Other staff** on that tab.
 - **Transaction Log** — full history.
 
 **What employees can text:**

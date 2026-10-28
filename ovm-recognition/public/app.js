@@ -70,17 +70,33 @@ function loadTab(tab) {
 
 // ---------- OVM Updates ----------
 let upInfo = null;
+const UP_GROUPS = { employees: 'Employees', managers: 'Managers', other: 'Other staff' };
+
+function upPhone(p) {
+  const m = String(p || '').match(/^\+1(\d{3})(\d{3})(\d{4})$/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : (p || '');
+}
 
 async function loadUpdates() {
-  [upInfo, employeesCache] = await Promise.all([api('/api/updates'), api('/api/employees')]);
-  const people = employeesCache.filter(e => e.status !== 'Inactive' && e.phone);
-  const checked = new Set([...document.querySelectorAll('.up-person:checked')].map(c => Number(c.value)));
-  document.getElementById('up-all-label').textContent = `Everyone (${people.length})`;
-  document.getElementById('up-people').innerHTML = people.map(e => `<label><input type="checkbox" class="up-person" value="${e.id}" ${checked.has(e.id) ? 'checked' : ''} onchange="upUpdate()"> ${esc(e.name)}${e.department ? ` <span class="dim">· ${esc(e.department)}</span>` : ''}</label>`).join('');
-  const noPhone = employeesCache.filter(e => e.status !== 'Inactive' && !e.phone).length;
-  const np = document.getElementById('up-nophone');
-  np.textContent = noPhone ? `${noPhone} active employee(s) have no phone number and won't get it.` : '';
-  np.classList.toggle('hidden', !noPhone);
+  upInfo = await api('/api/updates');
+  const people = upInfo.people;
+  const checked = new Set([...document.querySelectorAll('.up-person:checked')].map(c => c.value));
+  for (const box of document.querySelectorAll('.up-group')) {
+    const n = people.filter(p => p.group === box.value).length;
+    box.nextElementSibling.textContent = `${UP_GROUPS[box.value]} (${n})`;
+  }
+  // "Choose people": everyone, under a heading per group
+  document.getElementById('up-people').innerHTML = Object.entries(UP_GROUPS).map(([group, label]) => {
+    const inGroup = people.filter(p => p.group === group);
+    if (!inGroup.length) return '';
+    return `<p class="up-people-head">${label}</p>` + inGroup.map(p => `<label><input type="checkbox" class="up-person" value="${p.key}" ${checked.has(p.key) ? 'checked' : ''} onchange="upUpdate()"> ${esc(p.name)}${p.detail ? ` <span class="dim">· ${esc(p.detail)}</span>` : ''}</label>`).join('');
+  }).join('');
+  const np = [];
+  if (upInfo.no_phone.employees) np.push(`${upInfo.no_phone.employees} active employee(s)`);
+  if (upInfo.no_phone.managers) np.push(`${upInfo.no_phone.managers} manager(s)`);
+  const npEl = document.getElementById('up-nophone');
+  npEl.textContent = np.length ? `${np.join(' and ')} have no phone number and won't get it.` : '';
+  npEl.classList.toggle('hidden', !np.length);
 
   const missing = [];
   if (!upInfo.number) missing.push('add the new number as UPDATES_NUMBER in Render');
@@ -89,10 +105,18 @@ async function loadUpdates() {
   setup.textContent = missing.length ? `To finish setting up: ${missing.join(', and ')}.` : '';
   setup.classList.toggle('hidden', !missing.length);
 
+  const contacts = people.filter(p => p.group === 'other');
+  document.querySelector('#up-contacts tbody').innerHTML = contacts.map(c => `
+    <tr>
+      <td class="strong">${esc(c.name)}</td>
+      <td class="nowrap">${esc(upPhone(c.phone))}</td>
+      <td class="nowrap dim">${c.updates_intro_sent_at ? fmtDate(c.updates_intro_sent_at) : 'Not yet'}</td>
+      <td class="num"><button class="small link" onclick="upRemoveContact(${c.id})">Remove</button></td>
+    </tr>`).join('') || emptyRow(4, 'No one added yet.');
   document.querySelector('#up-replies tbody').innerHTML = upInfo.replies.map(r => `
     <tr>
       <td class="nowrap dim">${fmtDateTime(r.created_at)}</td>
-      <td class="strong nowrap">${esc(r.employee_name || r.phone)}</td>
+      <td class="strong nowrap">${esc(r.employee_name || upPhone(r.phone))}</td>
       <td>${esc(r.body)}</td>
     </tr>`).join('') || emptyRow(3, 'No replies yet.');
   document.querySelector('#up-sent tbody').innerHTML = upInfo.updates.map(u => `
@@ -104,16 +128,26 @@ async function loadUpdates() {
   upUpdate();
 }
 
+// Who the update goes to: the ticked groups, or the people ticked one by one (one text per phone)
 function upRecipients() {
-  const people = employeesCache.filter(e => e.status !== 'Inactive' && e.phone);
-  if (document.querySelector('input[name=up-mode]:checked').value === 'all') return people;
-  const ids = [...document.querySelectorAll('.up-person:checked')].map(c => Number(c.value));
-  return people.filter(e => ids.includes(e.id));
+  const people = upInfo ? upInfo.people : [];
+  let chosen;
+  if (document.querySelector('input[name=up-mode]:checked').value === 'groups') {
+    const groups = [...document.querySelectorAll('.up-group:checked')].map(c => c.value);
+    chosen = people.filter(p => groups.includes(p.group));
+  } else {
+    const keys = [...document.querySelectorAll('.up-person:checked')].map(c => c.value);
+    chosen = people.filter(p => keys.includes(p.key));
+  }
+  const seen = new Set();
+  return chosen.filter(p => !seen.has(p.phone) && seen.add(p.phone));
 }
 
 function upUpdate() {
   if (!upInfo) return;
-  document.getElementById('up-people').classList.toggle('hidden', document.querySelector('input[name=up-mode]:checked').value !== 'pick');
+  const pick = document.querySelector('input[name=up-mode]:checked').value === 'pick';
+  document.getElementById('up-people').classList.toggle('hidden', !pick);
+  document.getElementById('up-groups').classList.toggle('hidden', pick);
   const who = upRecipients();
   const sample = who[0] || { name: 'Sam Sample' };
   const body = document.getElementById('up-body').value.trim();
@@ -151,7 +185,7 @@ async function upSend() {
   btn.textContent = 'Sending…';
   upStatus('');
   try {
-    const r = await api('/api/updates', { method: 'POST', body: JSON.stringify({ employee_ids: who.map(e => e.id), body }) });
+    const r = await api('/api/updates', { method: 'POST', body: JSON.stringify({ recipients: who.map(p => p.key), body }) });
     document.getElementById('up-body').value = '';
     upStatus('Sent to ' + r.sent + (r.sent === 1 ? ' person.' : ' people.') + (r.failed.length ? " Didn't send to: " + r.failed.join(', ') + '.' : ''), r.failed.length > 0);
     await loadUpdates();
@@ -171,6 +205,29 @@ async function upTest() {
   } catch (e) {
     if (e.message !== 'unauthorized') upStatus(e.message, true);
   }
+}
+
+async function upAddContact(ev) {
+  ev.preventDefault();
+  const status = document.getElementById('up-c-status');
+  try {
+    await api('/api/updates/contacts', { method: 'POST', body: JSON.stringify({
+      name: document.getElementById('up-c-name').value, phone: document.getElementById('up-c-phone').value }) });
+    document.getElementById('up-c-name').value = '';
+    document.getElementById('up-c-phone').value = '';
+    status.textContent = '';
+    status.classList.remove('error');
+    await loadUpdates();
+  } catch (e) {
+    if (e.message !== 'unauthorized') { status.textContent = e.message; status.classList.add('error'); }
+  }
+}
+
+async function upRemoveContact(id) {
+  const c = upInfo.people.find(p => p.key === 'c:' + id);
+  if (!c || !confirm(`Remove ${c.name} from OVM Updates? They won't get any more updates.`)) return;
+  await api('/api/updates/contacts/' + id, { method: 'DELETE' });
+  await loadUpdates();
 }
 
 // ---------- Texts ----------

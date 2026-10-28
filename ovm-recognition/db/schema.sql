@@ -156,6 +156,17 @@ CREATE TABLE IF NOT EXISTS managers (
 ALTER TABLE recognition_rules ADD COLUMN IF NOT EXISTS nominatable BOOLEAN DEFAULT false;
 -- The manager who nominated an award (nominated_by keeps their name for the record)
 ALTER TABLE point_transactions ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES managers(id);
+-- When the manager got their first OVM Updates text (empty = not yet)
+ALTER TABLE managers ADD COLUMN IF NOT EXISTS updates_intro_sent_at TIMESTAMPTZ;
+
+-- Staff who get OVM Updates but aren't in the rewards program ("Other staff" on the OVM Updates tab)
+CREATE TABLE IF NOT EXISTS update_contacts (
+  id                     SERIAL PRIMARY KEY,
+  name                   TEXT NOT NULL,
+  phone                  TEXT UNIQUE NOT NULL,  -- E.164
+  updates_intro_sent_at  TIMESTAMPTZ,
+  created_at             TIMESTAMPTZ DEFAULT now()
+);
 
 -- Where a manager is in a "text NOMINATE" conversation (who -> award -> what they did)
 CREATE TABLE IF NOT EXISTS sms_sessions (
