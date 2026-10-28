@@ -64,7 +64,113 @@ function loadTab(tab) {
   if (tab === 'rewards') loadRewards();
   if (tab === 'rules') loadRules();
   if (tab === 'texts') loadTexts();
+  if (tab === 'updates') loadUpdates();
   if (tab === 'log') loadLog();
+}
+
+// ---------- OVM Updates ----------
+let upInfo = null;
+
+async function loadUpdates() {
+  [upInfo, employeesCache] = await Promise.all([api('/api/updates'), api('/api/employees')]);
+  const people = employeesCache.filter(e => e.status !== 'Inactive' && e.phone);
+  const checked = new Set([...document.querySelectorAll('.up-person:checked')].map(c => Number(c.value)));
+  document.getElementById('up-all-label').textContent = `Everyone (${people.length})`;
+  document.getElementById('up-people').innerHTML = people.map(e => `<label><input type="checkbox" class="up-person" value="${e.id}" ${checked.has(e.id) ? 'checked' : ''} onchange="upUpdate()"> ${esc(e.name)}${e.department ? ` <span class="dim">· ${esc(e.department)}</span>` : ''}</label>`).join('');
+  const noPhone = employeesCache.filter(e => e.status !== 'Inactive' && !e.phone).length;
+  const np = document.getElementById('up-nophone');
+  np.textContent = noPhone ? `${noPhone} active employee(s) have no phone number and won't get it.` : '';
+  np.classList.toggle('hidden', !noPhone);
+
+  const missing = [];
+  if (!upInfo.number) missing.push('add the new number as UPDATES_NUMBER in Render');
+  if (!upInfo.notify_set) missing.push('add your cell as ADMIN_PHONE in Render so replies reach you');
+  const setup = document.getElementById('up-setup');
+  setup.textContent = missing.length ? `To finish setting up: ${missing.join(', and ')}.` : '';
+  setup.classList.toggle('hidden', !missing.length);
+
+  document.querySelector('#up-replies tbody').innerHTML = upInfo.replies.map(r => `
+    <tr>
+      <td class="nowrap dim">${fmtDateTime(r.created_at)}</td>
+      <td class="strong nowrap">${esc(r.employee_name || r.phone)}</td>
+      <td>${esc(r.body)}</td>
+    </tr>`).join('') || emptyRow(3, 'No replies yet.');
+  document.querySelector('#up-sent tbody').innerHTML = upInfo.updates.map(u => `
+    <tr>
+      <td class="nowrap dim">${fmtDateTime(u.created_at)}</td>
+      <td>${esc(u.body)}${u.failed.length ? `<span class="sub-line neg">Didn't send to: ${esc(u.failed.join(', '))}</span>` : ''}</td>
+      <td class="num">${u.sent_count}</td>
+    </tr>`).join('') || emptyRow(3, 'Nothing sent yet.');
+  upUpdate();
+}
+
+function upRecipients() {
+  const people = employeesCache.filter(e => e.status !== 'Inactive' && e.phone);
+  if (document.querySelector('input[name=up-mode]:checked').value === 'all') return people;
+  const ids = [...document.querySelectorAll('.up-person:checked')].map(c => Number(c.value));
+  return people.filter(e => ids.includes(e.id));
+}
+
+function upUpdate() {
+  if (!upInfo) return;
+  document.getElementById('up-people').classList.toggle('hidden', document.querySelector('input[name=up-mode]:checked').value !== 'pick');
+  const who = upRecipients();
+  const sample = who[0] || { name: 'Sam Sample' };
+  const body = document.getElementById('up-body').value.trim();
+  const text = body.replace(/\{first_name\}/g, sample.name.split(' ')[0]);
+  // First-timers get the "save this number" intro on top
+  const newcomers = who.filter(e => !e.updates_intro_sent_at).length;
+  const preview = document.getElementById('up-preview');
+  preview.innerHTML = upInfo.intro && newcomers
+    ? `<div class="intro-preview">${esc(upInfo.intro)}</div>${esc(text || 'Your update will appear here.')}`
+    : esc(text || 'Your update will appear here.');
+  document.getElementById('up-preview-who').textContent = (who[0] ? 'Preview for ' + who[0].name : 'Preview') +
+    (upInfo.intro && newcomers ? ` · the faded part is added for the ${newcomers} ${newcomers === 1 ? 'person' : 'people'} getting their first update` : '');
+  const full = (upInfo.intro && newcomers ? upInfo.intro + '\n\n' : '') + text;
+  const plain = !/[^\x00-\x7F£¥èéùìòÇØøÅåÄÖÑÜßÉäöñüà€]/.test(full);
+  const n = [...full].length;
+  const parts = n <= (plain ? 160 : 70) ? 1 : Math.ceil(n / (plain ? 153 : 67));
+  document.getElementById('up-count').textContent = n + ' characters' + (parts > 1 ? ' · sends as ' + parts + ' parts' : '');
+  document.getElementById('up-send').textContent = who.length ? 'Send to ' + who.length + (who.length === 1 ? ' person' : ' people') : 'Send';
+}
+
+function upStatus(msg, isError) {
+  const el = document.getElementById('up-status');
+  el.textContent = msg;
+  el.classList.toggle('error', !!isError);
+}
+
+async function upSend() {
+  const who = upRecipients();
+  const body = document.getElementById('up-body').value;
+  if (!who.length) return upStatus('Choose who should get the update.', true);
+  if (!body.trim()) return upStatus('Write an update first.', true);
+  if (!confirm('Send this update from the OVM Updates number to ' + who.length + (who.length === 1 ? ' person' : ' people') + '?\n\n' + who.map(e => e.name).join(', '))) return;
+  const btn = document.getElementById('up-send');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  upStatus('');
+  try {
+    const r = await api('/api/updates', { method: 'POST', body: JSON.stringify({ employee_ids: who.map(e => e.id), body }) });
+    document.getElementById('up-body').value = '';
+    upStatus('Sent to ' + r.sent + (r.sent === 1 ? ' person.' : ' people.') + (r.failed.length ? " Didn't send to: " + r.failed.join(', ') + '.' : ''), r.failed.length > 0);
+    await loadUpdates();
+  } catch (e) {
+    if (e.message !== 'unauthorized') upStatus(e.message, true);
+  } finally {
+    btn.disabled = false;
+    upUpdate();
+  }
+}
+
+async function upTest() {
+  upStatus('Sending…');
+  try {
+    await api('/api/updates/test', { method: 'POST', body: JSON.stringify({ body: document.getElementById('up-body').value }) });
+    upStatus('Test sent to your phone from the OVM Updates number');
+  } catch (e) {
+    if (e.message !== 'unauthorized') upStatus(e.message, true);
+  }
 }
 
 // ---------- Texts ----------

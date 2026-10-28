@@ -367,6 +367,11 @@ textarea { min-height: 72px; resize: vertical; }
 .bc-list label { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; }
 .bc-check { font-size: 0.875rem; }
 
+/* OVM Updates */
+.setup-note { margin: 0 0 12px; padding: 10px 14px; border-radius: 8px; background: #fbf1e3; color: #6e4511; font-size: 0.875rem; }
+.intro-preview { opacity: 0.7; margin-bottom: 6px; }
+#up-replies td:last-child, #up-sent td:nth-child(2) { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 220px; }
+
 /* Month-end prompt */
 .month-banner {
   display: flex;

@@ -126,6 +126,19 @@ CREATE TABLE IF NOT EXISTS sms_log (
   body         TEXT,
   created_at   TIMESTAMPTZ DEFAULT now()
 );
+-- Which number the text went through: 'rewards' (TEXTING_NUMBER) or 'updates' (UPDATES_NUMBER)
+ALTER TABLE sms_log ADD COLUMN IF NOT EXISTS line TEXT DEFAULT 'rewards';
+
+-- OVM Updates: team news texted from its own number (UPDATES_NUMBER), one row per send
+CREATE TABLE IF NOT EXISTS staff_updates (
+  id          SERIAL PRIMARY KEY,
+  body        TEXT NOT NULL,
+  sent_count  INTEGER DEFAULT 0,
+  failed      TEXT[] DEFAULT '{}',  -- names it didn't go to
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+-- When the employee got their first OVM Updates text, which asks them to save the number (empty = not yet)
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS updates_intro_sent_at TIMESTAMPTZ;
 
 -- Managers who can nominate employees for awards (from their own page /n/<token>, or by
 -- texting NOMINATE). They don't see points or approve anything — every nomination goes

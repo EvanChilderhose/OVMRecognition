@@ -12,6 +12,9 @@
 //     "contactId": "{{contact.id}}",
 //     "message": "{{message.body}}"
 //   }
+// Optional: if GHL's merge-field picker offers the number that was texted, add it
+// as "to". It tells replies to the OVM Updates number apart for certain (without
+// it, lib/updates.js works it out from which number texted that person last).
 //
 // The secret stops anyone else who finds this URL from posting fake texts
 // (e.g. pretending to be an employee and redeeming their points). It can also
@@ -26,6 +29,7 @@ const { sendTemplate } = require('../lib/messages');
 const { requestReward } = require('../lib/redeem');
 const { managerByPhone, textManager } = require('../lib/nominate');
 const { handleManagerText } = require('../lib/smsNominate');
+const { isUpdatesReply, handleUpdatesReply } = require('../lib/updates');
 
 router.post('/ghl-sms', async (req, res) => {
   const expected = process.env.WEBHOOK_SECRET;
@@ -47,6 +51,13 @@ router.post('/ghl-sms', async (req, res) => {
 
     const empResult = await pool.query('SELECT * FROM employees WHERE phone = $1', [phone]);
     const employee = empResult.rows[0];
+
+    // Replies to the OVM Updates number are forwarded to you, not answered by the rewards bot
+    const textedNumber = body.to || body.toNumber || body.to_number;
+    if (await isUpdatesReply({ to: textedNumber, phone, text })) {
+      await handleUpdatesReply({ phone, text, employee, name: body.name });
+      return;
+    }
 
     await pool.query(
       `INSERT INTO sms_log (employee_id, direction, phone, body) VALUES ($1, 'inbound', $2, $3)`,
