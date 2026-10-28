@@ -24,6 +24,13 @@ router.get('/contact.vcf', (req, res) => {
   res.set('Content-Disposition', 'inline; filename="OVM-Rewards.vcf"'); // file name must be plain letters; the contact name inside has the emoji
   res.send(card);
 });
+router.get('/updates.vcf', (req, res) => {
+  const card = contactCard.updatesVcard();
+  if (!card) return res.status(404).type('text').send('The OVM Updates number isn\'t set up yet.');
+  res.set('Content-Type', 'text/vcard; charset=utf-8');
+  res.set('Content-Disposition', 'inline; filename="OVM-Updates.vcf"');
+  res.send(card);
+});
 
 // Shift counts start from the first day of Wagepoint data used by the program
 const SHIFTS_COUNTED_FROM = process.env.SHIFTS_COUNTED_FROM || '2026-07-14';

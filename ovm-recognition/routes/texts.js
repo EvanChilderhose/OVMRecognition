@@ -7,6 +7,7 @@ const { wrap, httpError } = require('../lib/http');
 const { TEXTS, BY_KEY, getTemplate, render, placeholdersOf, fill } = require('../lib/messages');
 const { sendSMS } = require('../lib/ghl');
 const { normalizePhone } = require('../lib/phone');
+const { updatesNumber } = require('../lib/contactCard');
 
 const SAMPLE_EMPLOYEE = { name: 'Sam Sample', current_points: 300, lifetime_points: 450, profile_token: 'abc123' };
 
@@ -68,7 +69,7 @@ router.post('/:key/test', wrap(async (req, res) => {
   else message = render(template.body, def.sample, SAMPLE_EMPLOYEE, footer.enabled ? footer.body : null);
   message = `[TEST] ${message}`;
   try {
-    await sendSMS({ phone, name: 'OVM Manager', message });
+    await sendSMS({ phone, name: 'OVM Manager', message, fromNumber: def.from === 'updates' ? updatesNumber() : undefined });
   } catch (err) {
     throw httpError(502, `GoHighLevel didn't send it: ${err.response?.data?.message || err.message}`);
   }
