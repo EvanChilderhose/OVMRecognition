@@ -50,11 +50,10 @@ function periodOf(year, month) {
   return `${year}-${pad(month)}`;
 }
 
-// Monthly awards are chosen from the last day of a month through the first
-// week of the next. Returns the month being chosen for ('YYYY-MM'), or null
-// outside that window.
+// Monthly awards are chosen in the first week of the next month (once the
+// month's last shift is done). Returns the month being chosen for
+// ('YYYY-MM'), or null outside that window.
 function monthEndPeriod(now) {
-  if (isLastDayOfMonth(now)) return periodOf(now.year, now.month);
   if (now.day <= 7) return now.month === 1 ? periodOf(now.year - 1, 12) : periodOf(now.year, now.month - 1);
   return null;
 }

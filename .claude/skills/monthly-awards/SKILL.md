@@ -5,7 +5,7 @@ description: Run the OVM Employee Recognition monthly attendance awards from a T
 
 # Monthly awards run
 
-Evan runs this once a month (reminder: 10 AM on the last day of the month). Goal: a reviewed
+Evan runs this once a month (reminder: 10 AM on the 1st, for the month that just ended). Goal: a reviewed
 `monthly-results-YYYY-MM.csv` that Evan uploads in the dashboard (Pending Approvals →
 **Import monthly results**). Awards land in Pending Approvals; each winner is texted when Evan
 approves. Employee of the Month is separate — Evan picks it in the dashboard, never in this file.

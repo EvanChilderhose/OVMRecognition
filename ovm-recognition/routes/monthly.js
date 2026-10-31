@@ -23,7 +23,7 @@ const withLabel = r => r && ({ ...r, label: periodLabel(r.period), winner_name: 
 // What the dashboard needs to show the month-end prompt
 router.get('/employee-of-the-month', wrap(async (req, res) => {
   const now = today();
-  const windowPeriod = monthEndPeriod(now); // set on the last day of a month and the first week after
+  const windowPeriod = monthEndPeriod(now); // set in the first week of a month (for the month before)
   const period = windowPeriod || periodOf(now.year, now.month);
   const pick = withLabel((await pool.query(`${PICKS} WHERE m.period = $1`, [period])).rows[0]);
   const rule = (await pool.query('SELECT points FROM recognition_rules WHERE event = $1', [EOTM])).rows[0];

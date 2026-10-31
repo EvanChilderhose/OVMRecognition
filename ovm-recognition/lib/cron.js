@@ -5,7 +5,7 @@
 //    a manager still has to approve it in the dashboard before points are
 //    added and the text goes out. This never auto-texts employees, but it
 //    texts the manager (ADMIN_PHONE) a list of the new awards waiting.
-// 2. Month-end reminder: on the last day of each month, from 10 AM, texts the
+// 2. Month-end reminder: on the 1st of each month, from 10 AM, texts the
 //    program manager (ADMIN_PHONE) to pick Employee of the Month and run the
 //    monthly awards. Sent once per month.
 //
@@ -13,7 +13,7 @@
 
 const cron = require('node-cron');
 const pool = require('../db/pool');
-const { TIMEZONE, today, parseDate, isSameMonthDay, currentHour, isLastDayOfMonth, periodOf, periodLabel } = require('./time');
+const { TIMEZONE, today, parseDate, isSameMonthDay, currentHour, periodOf, periodLabel } = require('./time');
 const REMINDER_HOUR = 10;
 
 async function checkBirthdaysAndAnniversaries() {
@@ -76,15 +76,16 @@ async function maybeCreateAward(employee, eventLabel, rule, now) {
 
 async function sendMonthEndReminder() {
   const now = today();
-  if (!isLastDayOfMonth(now) || currentHour() < REMINDER_HOUR) return;
+  // On the 1st (the month just ended, including its last shift), from 10 AM
+  if (now.day !== 1 || currentHour() < REMINDER_HOUR) return;
   const { adminPhones, notifyManager } = require('./messages');
   const phones = adminPhones();
   if (!phones.length || !process.env.GHL_API_KEY) return;
 
-  // Claim this month's reminder first, so overlapping runs can't both send it
-  const period = periodOf(now.year, now.month);
+  // Claim the reminder for the month that just ended, so overlapping runs can't both send it
+  const period = now.month === 1 ? periodOf(now.year - 1, 12) : periodOf(now.year, now.month - 1);
   const claimed = await pool.query(
-    `INSERT INTO admin_reminders (kind, period) VALUES ('month_end', $1) ON CONFLICT DO NOTHING RETURNING period`,
+    `INSERT INTO admin_reminders (kind, period) VALUES ('month_start', $1) ON CONFLICT DO NOTHING RETURNING period`,
     [period]
   );
   if (!claimed.rows.length) return; // already sent this month
@@ -100,7 +101,7 @@ function run() {
 function start() {
   // Birthdays/anniversaries: every day at 7:00 AM Ottawa time
   cron.schedule('0 7 * * *', run, { timezone: TIMEZONE });
-  // Month-end reminder: checked every hour (it only sends on the last day, from 10 AM, once)
+  // Month-end reminder: checked every hour (it only sends on the 1st, from 10 AM, once)
   cron.schedule('5 * * * *', () => sendMonthEndReminder().catch(err => console.error('Month-end reminder failed:', err)), { timezone: TIMEZONE });
 
   // Also check at startup: on Render's free tier the app sleeps when idle and
