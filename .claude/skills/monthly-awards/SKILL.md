@@ -42,9 +42,13 @@ root, which is git-ignored. Never copy those files elsewhere in the repo or comm
    - Brayden's start is 8:30 even though he's often ~15–20 min late — keep it.
    - Best Attendance, Least Lates and Most Early are **full-timers only** (4+ scheduled shifts/week);
      Perfect Attendance is open to everyone.
+   - **Whole month only:** anyone who started after the 1st (config `firstDay`) can't win any monthly
+     award that month (Evan, Oct 2026). Their shifts still count.
+   - **Least Lates:** a very-late day (over 60 min) rules you out, even though it isn't a "Late".
+     Least Lates ties all win, however many shifts each worked (Evan, Nov 2026).
    - **Best Attendance tie-break:** if two or more have the same attendance %, it goes to whoever worked
      the **most shifts that month** (picked-up shifts count); then fewer lates. Only a full tie on all
-     three shares it. Least Lates and Most Early ties still all win.
+     three shares it. Most Early ties still all win.
    Do ask about: possible holidays/closures, very late/early days that might be planned schedule
    changes, regular unscheduled days (schedule should change?), people not in config.json, and
    anyone with no punches. Re-run the script after each change until Evan is happy.
@@ -52,7 +56,8 @@ root, which is git-ignored. Never copy those files elsewhere in the repo or comm
 5. **Hand over.** Tell Evan where `monthly-results-YYYY-MM.csv` is, then: dashboard → Pending
    Approvals → **Import monthly results** → choose the file → check every line matched an employee →
    **Import** → approve the awards (that sends the texts). Remind him to pick **Employee of the Month**
-   if he hasn't. Summarize the month in a short table: who won what, points and dollar value
+   if he hasn't. Last step: Pending Approvals → **Send results to managers** texts every manager the
+   month's approved winners (he can edit it or untick people first). Summarize the month in a short table: who won what, points and dollar value
    (100 points = $20).
 
 ## Notes

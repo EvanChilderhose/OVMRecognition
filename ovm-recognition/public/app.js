@@ -373,7 +373,7 @@ function openImportForm() {
     const rows = importState.rows.map((r, i) => ({
       employee_id: Number(document.getElementById(`imp-emp-${i}`).value) || null,
       shifts: r.shifts,
-      awards: r.awards.filter(a => a.ok).map(a => a.name)
+      awards: r.awards.filter(a => a.ok).map(a => ({ name: a.name, detail: a.detail }))
     }));
     const unmatched = rows.filter((r, i) => !r.employee_id && (importState.rows[i].awards.length || importState.rows[i].shifts)).length;
     if (unmatched && !confirm(`${unmatched} line(s) aren't matched to an employee and will be skipped. Import the rest?`)) return;
@@ -874,12 +874,12 @@ function tmUseAppTip() {
   tmUpdate();
 }
 
-async function openManagerMessage() {
+async function openManagerMessage(prefill, title) {
   try { managersCache = await api('/api/managers'); } catch (e) { if (e.message !== 'unauthorized') alert(e.message); return; }
   const active = managersCache.filter(m => m.status !== 'Inactive' && m.phone);
   if (!active.length) return alert('Add a manager first.');
   const boxes = active.map(m => `<label><input type="checkbox" class="tm-person" value="${m.id}" checked onchange="tmUpdate()"> ${esc(m.name)}</label>`).join('');
-  showModal('Text managers', `
+  showModal(title || 'Text managers', `
     <div class="field">
       <label>Who gets it <span class="hint">(untick anyone to leave them out)</span></label>
       <div class="bc-list">${boxes}</div>
@@ -917,8 +917,22 @@ async function openManagerMessage() {
     }
   });
   document.querySelector('.modal').classList.add('wide');
+  if (prefill) document.getElementById('tm-body').value = prefill;
   tmUpdate();
   document.getElementById('tm-body').focus();
+}
+
+// The latest month's winners as a text for managers, ready to check and send
+async function sendResultsToManagers() {
+  let s;
+  try { s = await api('/api/monthly/summary'); } catch (e) { if (e.message !== 'unauthorized') alert(e.message); return; }
+  const notes = [];
+  if (s.pending) notes.push(s.pending + ' of ' + s.label + '\'s awards are still waiting in Pending Approvals, so they aren\'t in the text yet.');
+  if (!s.eotm_chosen) notes.push(s.label + ' has no Employee of the Month yet.');
+  if (notes.length && !confirm(notes.join('\n\n') + '\n\nOpen the text anyway?')) return;
+  await openManagerMessage(s.text, 'Send ' + s.label + ' results to managers');
+  document.getElementById('tm-link').checked = false;
+  tmUpdate();
 }
 
 async function tmTest() {

@@ -47,7 +47,7 @@ async function preview(csvText) {
   if (rows.length < 2) throw httpError(400, 'That file is empty.');
   const header = rows[0].map(h => norm(h));
   const col = name => header.indexOf(name);
-  const [cMonth, cEmp, cShifts, cAwards] = [col('month'), col('employee'), col('shifts'), col('awards')];
+  const [cMonth, cEmp, cShifts, cAwards, cDetails] = [col('month'), col('employee'), col('shifts'), col('awards'), col('details')];
   if (cMonth < 0 || cEmp < 0) throw httpError(400, 'This doesn\'t look like a monthly results file (it needs Month and Employee columns).');
 
   const employees = (await pool.query(`SELECT id, name, department FROM employees WHERE status = 'Active' ORDER BY name`)).rows;
@@ -61,10 +61,16 @@ async function preview(csvText) {
     const name = String(r[cEmp] || '').trim();
     const shiftsRaw = cShifts >= 0 ? String(r[cShifts] || '').trim() : '';
     const shifts = shiftsRaw === '' ? null : Number(shiftsRaw);
+    // Details: "Best Monthly Attendance=22 out of 23 shifts; Least Lates=0 lates"
+    const details = {};
+    for (const part of (cDetails >= 0 ? String(r[cDetails] || '') : '').split(';')) {
+      const [k, ...v] = part.split('=');
+      if (k && v.length) details[norm(k)] = v.join('=').trim();
+    }
     const awards = (cAwards >= 0 ? String(r[cAwards] || '') : '').split(';').map(a => a.trim()).filter(Boolean).map(a => {
       const rule = ruleByName[norm(a)];
       const managerPicked = MANAGER_PICKED.includes(norm(a));
-      return { name: rule ? rule.event : a, points: rule ? rule.points : null, ok: !!rule && !managerPicked,
+      return { name: rule ? rule.event : a, points: rule ? rule.points : null, ok: !!rule && !managerPicked, detail: details[norm(a)] || null,
         problem: managerPicked ? 'Chosen in the dashboard, not imported' : rule ? null : 'No recognition rule with this name' };
     });
     const match = matchEmployee(name, employees);
@@ -80,7 +86,7 @@ async function preview(csvText) {
   return { period: list[0], label: periodLabel(list[0]), rows: out, employees, previously_imported: already > 0 };
 }
 
-// Saves it. rows: [{ employee_id, shifts, awards: [rule names] }] (rows without employee_id are skipped)
+// Saves it. rows: [{ employee_id, shifts, awards: [rule names, or { name, detail }] }] (rows without employee_id are skipped)
 async function commit(period, rows) {
   if (!PERIOD.test(period || '')) throw httpError(400, 'Missing month.');
   const rules = (await pool.query('SELECT event, points FROM recognition_rules')).rows;
@@ -112,7 +118,9 @@ async function commit(period, rows) {
         summary.shifts++;
       }
 
-      for (const name of row.awards || []) {
+      for (const award of row.awards || []) {
+        const name = typeof award === 'string' ? award : award && award.name;
+        const detail = typeof award === 'object' && award && award.detail ? String(award.detail).slice(0, 80) : null;
         const rule = ruleByName[norm(name)];
         if (!rule || MANAGER_PICKED.includes(norm(name))) throw httpError(400, `"${name}" can't be imported.`);
         const exists = await client.query(
@@ -123,7 +131,7 @@ async function commit(period, rows) {
         await client.query(
           `INSERT INTO point_transactions (employee_id, type, reason, points, status, period, nominated_by, notes)
            VALUES ($1, 'award', $2, $3, 'pending', $4, $5, $6)`,
-          [id, rule.event, rule.points, period, IMPORTED_BY, `${label} attendance results`]
+          [id, rule.event, rule.points, period, IMPORTED_BY, detail || `${label} attendance results`]
         );
         summary.awards++;
       }

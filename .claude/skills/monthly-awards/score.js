@@ -16,12 +16,13 @@
 //   Early      = clock-in graceMinutes or more before the scheduled start
 //   Absent     = scheduled (not a holiday) and no punch, whatever the reason
 //   Picked up  = worked a day that isn't on their schedule (counts as a shift, never late/early)
+//   All monthly awards need the WHOLE month: anyone whose firstDay is after the 1st waits a month.
 //   Perfect Monthly Attendance — everyone: no absences, no lates, no very-lates
 //   Best Monthly Attendance / Least Lates / Most Early — full-timers only
 //     (scheduled fullTimeShiftsPerWeek or more), ties all win.
 //     Best = highest % of scheduled shifts worked. Tie: whoever worked the most shifts
 //     that month (including picked-up shifts); still tied: fewer lates; still tied: all win.
-//     Least Lates = fewest lates. Most Early = most early clock-ins (at least one).
+//     Least Lates = fewest lates, and no very-late days; ties all win. Most Early = most early clock-ins (at least one).
 
 const fs = require('fs');
 const path = require('path');
@@ -123,7 +124,7 @@ for (const p of people) {
   let shifts = monthShifts;
   if (SHIFTS_FROM) shifts = new Set(mine.filter(x => x.date >= SHIFTS_FROM && x.date <= monthEnd).map(x => x.date)).size;
   const r = { p, days, scheduled, worked, absent: c('Absent'), late: c('Late'), veryLate: c('Very late'), early: c('Early'), pickedUp: c('Picked up'), shifts, monthShifts,
-    fullTime: p.perWeek >= FULL_TIME, awards: [] };
+    fullTime: p.perWeek >= FULL_TIME, wholeMonth: !(p.firstDay && p.firstDay > monthStart), awards: [] };
   r.att = scheduled ? Math.min(1, worked / scheduled) : null;
   results.push(r);
 
@@ -152,17 +153,20 @@ for (const d of dates(monthStart, monthEnd)) {
 for (const n of unknownNames) flag(n, 'Not in config.json', 'Has punches but no schedule, so no attendance awards or shift count. Add them to config.json if they\'re in the program.');
 
 // ---------- awards ----------
-const eligible = results.filter(r => r.fullTime && r.scheduled > 0);
-for (const r of results) if (r.scheduled > 0 && r.absent === 0 && r.late === 0 && r.veryLate === 0) r.awards.push('Perfect Monthly Attendance');
+// Monthly awards need the whole month: anyone who started partway through waits until next month
+const eligible = results.filter(r => r.fullTime && r.wholeMonth && r.scheduled > 0);
+for (const r of results) if (r.wholeMonth && r.scheduled > 0 && r.absent === 0 && r.late === 0 && r.veryLate === 0) r.awards.push('Perfect Monthly Attendance');
 if (eligible.length) {
   // Best Attendance: highest attendance %, then most shifts worked this month, then fewest lates
   const rank = (a, b) => (Math.round(b.att * 1e6) - Math.round(a.att * 1e6)) || (b.monthShifts - a.monthShifts) || (a.late - b.late);
   const top = [...eligible].sort(rank)[0];
-  const leastL = Math.min(...eligible.map(r => r.late));
+  // Least Lates: a very-late day (over veryLateMinutes) rules you out
+  const lateEligible = eligible.filter(r => r.veryLate === 0);
+  const leastL = lateEligible.length ? Math.min(...lateEligible.map(r => r.late)) : null;
   const mostE = Math.max(...eligible.map(r => r.early));
   for (const r of eligible) {
     if (rank(r, top) === 0) r.awards.push('Best Monthly Attendance');
-    if (r.late === leastL) r.awards.push('Least Lates');
+    if (r.veryLate === 0 && r.late === leastL) r.awards.push('Least Lates');
     if (mostE > 0 && r.early === mostE) r.awards.push('Most Early');
   }
 }
@@ -170,7 +174,16 @@ if (eligible.length) {
 // ---------- output ----------
 const label = new Date(Date.UTC(Y, M - 1, 15)).toLocaleDateString('en-CA', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const q = s => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-const csvOut = ['Month,Employee,Shifts,Awards', ...results.map(r => [MONTH, q(r.p.name), r.shifts, q(r.awards.join('; '))].join(','))].join('\n') + '\n';
+// The numbers behind each award, e.g. "22 out of 23 shifts", shown to managers in the results text
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+function detail(r, award) {
+  if (award === 'Perfect Monthly Attendance' || award === 'Best Monthly Attendance') return `${r.worked} out of ${r.scheduled} shifts`;
+  if (award === 'Least Lates') return plural(r.late, 'late');
+  if (award === 'Most Early') return `${plural(r.early, 'shift')} early`;
+  return '';
+}
+const csvOut = ['Month,Employee,Shifts,Awards,Details', ...results.map(r => [MONTH, q(r.p.name), r.shifts, q(r.awards.join('; ')),
+  q(r.awards.map(a => `${a}=${detail(r, a)}`).join('; '))].join(','))].join('\n') + '\n';
 fs.mkdirSync(OUT, { recursive: true });
 const csvPath = path.join(OUT, `monthly-results-${MONTH}.csv`);
 fs.writeFileSync(csvPath, csvOut);
@@ -185,7 +198,7 @@ if (SHIFTS_FROM) lines.push(`Shifts counted from ${SHIFTS_FROM} (first run)`);
 lines.push('', '## Results', '');
 lines.push('| Employee | Sched | Worked | Absent | Late | Very late | Early | Picked up | Shifts | Awards |');
 lines.push('|---|---|---|---|---|---|---|---|---|---|');
-for (const r of results) lines.push(`| ${r.p.name}${r.fullTime ? '' : ' (part-time)'} | ${r.scheduled} | ${r.worked} | ${r.absent} | ${r.late} | ${r.veryLate} | ${r.early} | ${r.pickedUp} | ${r.shifts} | ${r.awards.join(', ') || '—'} |`);
+for (const r of results) lines.push(`| ${r.p.name}${r.fullTime ? '' : ' (part-time)'}${r.wholeMonth ? '' : ' (started mid-month)'} | ${r.scheduled} | ${r.worked} | ${r.absent} | ${r.late} | ${r.veryLate} | ${r.early} | ${r.pickedUp} | ${r.shifts} | ${r.awards.join(', ') || '—'} |`);
 lines.push('', `## Flags to review (${flags.length})`, '');
 if (!flags.length) lines.push('None.');
 for (const f of flags) lines.push(`- **${f.who}** — ${f.what}: ${f.detail}`);

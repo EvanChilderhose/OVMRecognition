@@ -112,4 +112,51 @@ router.post('/import', wrap(async (req, res) => {
   res.json(await monthlyImport.commit(period, rows));
 }));
 
+// A month's results as a text for managers (dashboard: Pending Approvals -> Send results to managers).
+// Only approved awards are listed; `pending` says how many of that month's are still waiting.
+const AWARD_ORDER = ['Perfect Monthly Attendance', 'Best Monthly Attendance', 'Least Lates', 'Most Early'];
+router.get('/summary', wrap(async (req, res) => {
+  let period = req.query.period;
+  if (!PERIOD.test(period || '')) {
+    const latest = (await pool.query(`SELECT MAX(period) AS p FROM point_transactions WHERE period IS NOT NULL`)).rows[0].p;
+    const lastEotm = (await pool.query('SELECT MAX(period) AS p FROM employee_of_month')).rows[0].p;
+    period = [latest, lastEotm].filter(Boolean).sort().pop();
+  }
+  if (!period) throw httpError(404, 'There are no monthly results yet. Import a month first.');
+
+  const rows = (await pool.query(
+    `SELECT t.reason, t.status, t.notes, e.name FROM point_transactions t JOIN employees e ON e.id = t.employee_id
+     WHERE t.period = $1 AND t.type = 'award' AND t.reason <> $2 ORDER BY e.name`, [period, EOTM]
+  )).rows;
+  const eotm = withLabel((await pool.query(`${PICKS} WHERE m.period = $1`, [period])).rows[0]);
+
+  const winners = {};
+  // The numbers saved at import ("22 out of 23 shifts"); older imports just say "... attendance results"
+  const numbers = n => (n && !/attendance results$/.test(n) && !/^Reached \d+ shifts$/.test(n) ? n : null);
+  for (const r of rows.filter(r => r.status === 'approved')) (winners[r.reason] = winners[r.reason] || []).push({ name: r.name, detail: numbers(r.notes) });
+  const reasons = Object.keys(winners).sort((a, b) => {
+    const ia = AWARD_ORDER.indexOf(a), ib = AWARD_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+
+  const lines = [`${periodLabel(period)} recognition winners:`, ''];
+  if (eotm) lines.push(`Employee of the Month: ${eotm.winner_name}`);
+  for (const reason of reasons) {
+    const list = winners[reason];
+    const same = list.every(w => w.detail === list[0].detail);
+    // One winner: "Joel Dapaa (22 out of 23 shifts)". A tie on the same number: "Least Lates (0 lates): A, B, C"
+    lines.push(same && list.length > 1 && list[0].detail
+      ? `${reason} (${list[0].detail}): ${list.map(w => w.name).join(', ')}`
+      : `${reason}: ${list.map(w => w.detail ? `${w.name} (${w.detail})` : w.name).join(', ')}`);
+  }
+  if (!eotm && !reasons.length) lines.push('(No winners approved yet)');
+  lines.push('', 'You can nominate anyone, anytime: {manager_link}');
+
+  res.json({
+    period, label: periodLabel(period), text: lines.join('\n'),
+    pending: rows.filter(r => r.status === 'pending').length,
+    eotm_chosen: !!eotm
+  });
+}));
+
 module.exports = router;
