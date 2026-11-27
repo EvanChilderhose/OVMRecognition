@@ -222,8 +222,18 @@ async function submit(manager, nomination, to) {
 
 // A name (plus maybe the award and reason): find the person, then carry on
 async function handleWho(manager, text, data, to) {
-  const [employees, rules] = await Promise.all([nominatableEmployees(), nominatableRules()]);
+  const [everyone, rules] = await Promise.all([nominatableEmployees(), nominatableRules()]);
+  // A supervisor who's an employee can't nominate themselves
+  const employees = everyone.filter(e => e.id !== manager.employee_id);
   const parsed = parseNomination(text, employees, rules);
+  if (!parsed.matches.length && manager.employee_id) {
+    const self = parseNomination(text, everyone, rules).matches;
+    if (self.length === 1 && self[0].id === manager.employee_id) {
+      await setSession(manager.phone, 'who', {});
+      await textManager('nominate_self', {}, manager, to);
+      return;
+    }
+  }
   data = {
     ...data,
     rule_id: parsed.rule ? parsed.rule.id : data.rule_id,

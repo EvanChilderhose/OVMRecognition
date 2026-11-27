@@ -35,7 +35,9 @@ router.get('/', wrap(async (req, res) => {
     `SELECT m.*,
        (SELECT COUNT(*)::int FROM point_transactions t WHERE t.manager_id = m.id) AS nominations,
        (SELECT COUNT(*)::int FROM point_transactions t WHERE t.manager_id = m.id AND t.status = 'pending') AS pending
-     FROM managers m ORDER BY m.name ASC`
+     FROM managers m
+     WHERE m.employee_id IS NULL OR m.supervisor = true -- former employee-supervisors are hidden
+     ORDER BY m.name ASC`
   );
   res.json(result.rows);
 }));
@@ -45,8 +47,8 @@ router.post('/', wrap(async (req, res) => {
   await notAnEmployee(values[1]);
   try {
     const result = await pool.query(
-      'INSERT INTO managers (name, phone, status, token) VALUES ($1, $2, $3, $4) RETURNING *',
-      [...values, newProfileToken()]
+      'INSERT INTO managers (name, phone, status, token, supervisor) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [...values, newProfileToken(), req.body.supervisor === true]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -55,11 +57,15 @@ router.post('/', wrap(async (req, res) => {
 }));
 
 router.put('/:id', wrap(async (req, res) => {
+  const current = (await pool.query('SELECT * FROM managers WHERE id = $1', [req.params.id])).rows[0];
+  if (!current) throw httpError(404, 'Manager not found');
+  if (current.employee_id) throw httpError(400, 'This supervisor is an employee. Change their details (or turn Supervisor off) on the Employees tab.');
   const values = readManager(req.body);
   await notAnEmployee(values[1]);
   let result;
   try {
-    result = await pool.query('UPDATE managers SET name = $1, phone = $2, status = $3 WHERE id = $4 RETURNING *', [...values, req.params.id]);
+    result = await pool.query('UPDATE managers SET name = $1, phone = $2, status = $3, supervisor = $4 WHERE id = $5 RETURNING *',
+      [...values, req.body.supervisor === true, req.params.id]);
   } catch (err) {
     throw duplicatePhone(err);
   }

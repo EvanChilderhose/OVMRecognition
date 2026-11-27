@@ -515,7 +515,7 @@ async function loadEmployees() {
   const tbody = document.querySelector('#employees-table tbody');
   tbody.innerHTML = employeesCache.map(e => `
     <tr>
-      <td><strong>${esc(e.name)}</strong>${e.phone ? `<span class="sub-line">${esc(e.phone)}</span>` : ''}</td>
+      <td><strong>${esc(e.name)}</strong>${e.supervisor ? ' <span class="tag ok">Supervisor</span>' : ''}${e.phone ? `<span class="sub-line">${esc(e.phone)}</span>` : ''}</td>
       <td>${esc(e.department)}</td>
       <td class="nowrap">${fmtDate(e.start_date)}</td>
       <td class="nowrap">${fmtDate(e.birthday)}</td>
@@ -543,6 +543,7 @@ function openEmployeeForm(id) {
       <option ${emp.status !== 'Inactive' ? 'selected' : ''}>Active</option>
       <option ${emp.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
     </select>`)}
+    <label class="bc-check"><input type="checkbox" id="f-supervisor" ${emp.supervisor ? 'checked' : ''}> <span><strong>Supervisor</strong> <span class="hint">(can nominate teammates and gets a reminder text every Friday. Send their invite from the Managers tab.)</span></span></label>
     ${emp.profile_token ? `
     <div class="field profile-link">
       <label for="f-profile">Profile link <span class="hint">— added to every text they get</span></label>
@@ -567,7 +568,8 @@ function openEmployeeForm(id) {
   `, async () => {
     const payload = {
       name: val('f-name'), phone: val('f-phone'), department: val('f-department'),
-      start_date: val('f-start') || null, birthday: val('f-birthday') || null, status: val('f-status')
+      start_date: val('f-start') || null, birthday: val('f-birthday') || null, status: val('f-status'),
+      supervisor: document.getElementById('f-supervisor').checked
     };
     if (id) await api(`/api/employees/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
     else await api('/api/employees', { method: 'POST', body: JSON.stringify(payload) });
@@ -774,7 +776,7 @@ async function loadManagers() {
   const tbody = document.querySelector('#managers-table tbody');
   tbody.innerHTML = managersCache.map(m => `
     <tr>
-      <td><strong>${esc(m.name)}</strong>${m.phone ? `<span class="sub-line">${esc(m.phone)}</span>` : ''}</td>
+      <td><strong>${esc(m.name)}</strong>${m.supervisor ? ` <span class="tag ok">${m.employee_id ? 'Supervisor · employee' : 'Supervisor'}</span>` : ''}${m.phone ? `<span class="sub-line">${esc(m.phone)}</span>` : ''}</td>
       <td>${statusTag(m.status)}</td>
       <td class="nowrap">${m.invited_at ? `<span class="dim">Sent ${esc(fmtDateTime(m.invited_at))}</span>` : '<span class="tag warn">Not sent</span>'}</td>
       <td class="num">${fmtNum(m.nominations)}${m.pending ? `<span class="sub-line">${m.pending} waiting</span>` : ''}</td>
@@ -786,11 +788,14 @@ function managerLink(m) { return `${location.origin}/n/${m.token}`; }
 
 function openManagerForm(id) {
   const m = id ? managersCache.find(x => x.id === id) : {};
-  showModal(id ? 'Edit Manager' : 'Add Manager', `
+  const linked = !!m.employee_id; // a supervisor who's an employee: their details live on the Employees tab
+  const details = linked ? `
+    <p class="hint-text"><strong>${esc(m.name)}</strong> (${esc(m.phone)}) is an employee and a supervisor. Change their details, or turn Supervisor off, on the Employees tab.</p>` : `
     ${field('f-mname', 'Name', `<input id="f-mname" value="${esc(m.name)}">`)}
     ${field('f-mphone', 'Mobile number', `<input id="f-mphone" type="tel" placeholder="613-555-1234" value="${esc(m.phone)}">`)}
     ${field('f-mstatus', 'Status', `<select id="f-mstatus"><option ${m.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${m.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>`)}
-    ${id ? `
+    <label class="bc-check"><input type="checkbox" id="f-msupervisor" ${m.supervisor ? 'checked' : ''}> <span><strong>Supervisor</strong> <span class="hint">(gets a reminder text every Friday to nominate someone)</span></span></label>`;
+  showModal(linked ? 'Supervisor' : id ? 'Edit Manager' : 'Add Manager', details + (id ? `
     <div class="field profile-link">
       <label for="f-mlink">Nominating page <span class="hint">(private to them)</span></label>
       <div class="link-row">
@@ -803,14 +808,15 @@ function openManagerForm(id) {
       <label>Invite text</label>
       <p class="hint-text" id="invite-status">${m.invited_at ? `Sent ${esc(fmtDateTime(m.invited_at))}` : 'Not sent yet'}</p>
       <button type="button" class="secondary create-link" onclick="sendManagerInvite(${m.id})">${m.invited_at ? 'Resend invite' : 'Send invite'}</button>
-    </div>` : '<p class="hint-text">After saving, open them again to send the invite text.</p>'}
-  `, async () => {
-    const payload = { name: val('f-mname'), phone: val('f-mphone'), status: val('f-mstatus') };
+    </div>` : '<p class="hint-text">After saving, open them again to send the invite text.</p>'), async () => {
+    if (linked) { closeModal(); return; }
+    const payload = { name: val('f-mname'), phone: val('f-mphone'), status: val('f-mstatus'), supervisor: document.getElementById('f-msupervisor').checked };
     if (id) await api(`/api/managers/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
     else await api('/api/managers', { method: 'POST', body: JSON.stringify(payload) });
     closeModal();
     loadManagers();
   });
+  if (linked) document.getElementById('modal-save').textContent = 'Done';
 }
 
 async function copyManagerLink() {

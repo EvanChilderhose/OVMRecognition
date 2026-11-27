@@ -33,7 +33,7 @@ async function recipients() {
     pool.query(`SELECT id, name, phone, department AS detail, updates_intro_sent_at FROM employees
                 WHERE COALESCE(status, 'Active') <> 'Inactive' AND phone IS NOT NULL ORDER BY name`),
     pool.query(`SELECT id, name, phone, NULL AS detail, updates_intro_sent_at FROM managers
-                WHERE COALESCE(status, 'Active') <> 'Inactive' AND phone IS NOT NULL ORDER BY name`),
+                WHERE COALESCE(status, 'Active') <> 'Inactive' AND phone IS NOT NULL AND employee_id IS NULL ORDER BY name`),
     pool.query('SELECT id, name, phone, NULL AS detail, updates_intro_sent_at FROM update_contacts ORDER BY name')
   ]);
   const tag = (rows, kind) => rows.map(r => ({ ...r, kind, key: `${kind}:${r.id}`, group: GROUPS[kind].group }));

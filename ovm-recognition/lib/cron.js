@@ -8,6 +8,10 @@
 // 2. Month-end reminder: on the 1st of each month, from 10 AM, texts the
 //    program manager (ADMIN_PHONE) to pick Employee of the Month and run the
 //    monthly awards. Sent once per month.
+// 3. Supervisor reminder: every Friday from 10 AM (until 5 PM, in case the app
+//    was down), texts everyone marked Supervisor to nominate someone. Once a week.
+//    At 5 PM, supervisors who still haven't nominated anyone this week (since
+//    Monday) get one follow-up text.
 //
 // "Today" is always Ottawa time (see lib/time.js), not the server's UTC clock.
 
@@ -93,20 +97,81 @@ async function sendMonthEndReminder() {
   await notifyManager('admin_month_end', { month: periodLabel(period) });
 }
 
+const SUPERVISOR_LAST_HOUR = 17;
+
+async function sendSupervisorReminders() {
+  const now = today();
+  const weekday = new Date(Date.UTC(now.year, now.month - 1, now.day)).getUTCDay(); // 5 = Friday
+  const hour = currentHour();
+  if (weekday !== 5 || hour < REMINDER_HOUR || hour >= SUPERVISOR_LAST_HOUR) return;
+  if (!process.env.GHL_API_KEY) return;
+  const supervisors = (await pool.query(
+    `SELECT * FROM managers WHERE supervisor = true AND status = 'Active' AND phone IS NOT NULL ORDER BY name`
+  )).rows;
+  if (!supervisors.length) return;
+
+  // Claim this Friday first, so overlapping runs can't both send it
+  const claimed = await pool.query(
+    `INSERT INTO admin_reminders (kind, period) VALUES ('supervisor_weekly', $1) ON CONFLICT DO NOTHING RETURNING period`,
+    [now.iso]
+  );
+  if (!claimed.rows.length) return; // already sent today
+
+  const { textManager } = require('./nominate');
+  for (const supervisor of supervisors) await textManager('supervisor_weekly', {}, supervisor);
+}
+
+const FOLLOWUP_HOUR = 17;
+const FOLLOWUP_LAST_HOUR = 20; // don't send it later than this if the app was down at 5
+
+async function sendSupervisorFollowups() {
+  const now = today();
+  const weekday = new Date(Date.UTC(now.year, now.month - 1, now.day)).getUTCDay();
+  const hour = currentHour();
+  if (weekday !== 5 || hour < FOLLOWUP_HOUR || hour >= FOLLOWUP_LAST_HOUR) return;
+  if (!process.env.GHL_API_KEY) return;
+  // Only after this Friday's first reminder went out
+  const reminded = await pool.query(`SELECT 1 FROM admin_reminders WHERE kind = 'supervisor_weekly' AND period = $1`, [now.iso]);
+  if (!reminded.rows.length) return;
+  const claimed = await pool.query(
+    `INSERT INTO admin_reminders (kind, period) VALUES ('supervisor_followup', $1) ON CONFLICT DO NOTHING RETURNING period`,
+    [now.iso]
+  );
+  if (!claimed.rows.length) return; // already sent today
+
+  // Monday of this week, in Ottawa time
+  const monday = new Date(Date.UTC(now.year, now.month - 1, now.day - 4)).toISOString().slice(0, 10);
+  const quiet = (await pool.query(
+    `SELECT m.* FROM managers m
+     WHERE m.supervisor = true AND m.status = 'Active' AND m.phone IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM point_transactions t WHERE t.manager_id = m.id
+                       AND (t.created_at AT TIME ZONE $2)::date >= $1::date)
+     ORDER BY m.name`, [monday, TIMEZONE]
+  )).rows;
+  const { textManager } = require('./nominate');
+  for (const supervisor of quiet) await textManager('supervisor_followup', {}, supervisor);
+}
+
+function hourly() {
+  sendMonthEndReminder().catch(err => console.error('Month-end reminder failed:', err));
+  sendSupervisorReminders().catch(err => console.error('Supervisor reminder failed:', err));
+  sendSupervisorFollowups().catch(err => console.error('Supervisor follow-up failed:', err));
+}
+
 function run() {
   checkBirthdaysAndAnniversaries().catch(err => console.error('Birthday/anniversary check failed:', err));
-  sendMonthEndReminder().catch(err => console.error('Month-end reminder failed:', err));
+  hourly();
 }
 
 function start() {
   // Birthdays/anniversaries: every day at 7:00 AM Ottawa time
   cron.schedule('0 7 * * *', run, { timezone: TIMEZONE });
-  // Month-end reminder: checked every hour (it only sends on the 1st, from 10 AM, once)
-  cron.schedule('5 * * * *', () => sendMonthEndReminder().catch(err => console.error('Month-end reminder failed:', err)), { timezone: TIMEZONE });
+  // Month-end and Friday supervisor reminders: checked every hour (each sends once, from 10 AM)
+  cron.schedule('5 * * * *', hourly, { timezone: TIMEZONE });
 
   // Also check at startup: on Render's free tier the app sleeps when idle and
   // would miss the scheduled runs. The duplicate checks make this safe.
   run();
 }
 
-module.exports = { start, checkBirthdaysAndAnniversaries, sendMonthEndReminder };
+module.exports = { start, checkBirthdaysAndAnniversaries, sendMonthEndReminder, sendSupervisorReminders, sendSupervisorFollowups };

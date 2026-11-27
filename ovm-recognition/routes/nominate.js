@@ -64,7 +64,7 @@ router.get('/nominate-api/:token', wrap(async (req, res) => {
   res.json({
     manager: { name: manager.name, first_name: firstName(manager.name) },
     contact_card: contactCardUrl() ? '/contact.vcf' : null,
-    employees,
+    employees: employees.filter(e => e.id !== manager.employee_id), // supervisors can't nominate themselves
     awards,
     max_custom_points: MAX_CUSTOM_POINTS,
     dollars_per_point: DOLLARS_PER_POINT,

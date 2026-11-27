@@ -175,3 +175,9 @@ CREATE TABLE IF NOT EXISTS sms_sessions (
   data        JSONB DEFAULT '{}',
   updated_at  TIMESTAMPTZ DEFAULT now()
 );
+
+-- Supervisors: people who can nominate (like managers) and get a reminder every Friday.
+-- A supervisor can be a manager (supervisor = true) or an employee in the rewards program,
+-- who then also gets a row here linked by employee_id (name/phone kept in step with Employees).
+ALTER TABLE managers ADD COLUMN IF NOT EXISTS supervisor BOOLEAN DEFAULT false;
+ALTER TABLE managers ADD COLUMN IF NOT EXISTS employee_id INTEGER UNIQUE REFERENCES employees(id);

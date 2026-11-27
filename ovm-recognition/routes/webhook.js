@@ -64,11 +64,15 @@ router.post('/ghl-sms', async (req, res) => {
       [employee ? employee.id : null, phone, text]
     );
 
-    // Managers (never employees): every text is about nominating
+    // Managers and supervisors: NOMINATE and the steps after it. For a manager every
+    // text is about nominating; a supervisor who's an employee can also text POINTS etc.
     const manager = await managerByPhone(phone);
     if (manager) {
-      if (!(await handleManagerText(manager, text, contactId))) await textManager('manager_help', {}, manager, { contactId });
-      return;
+      if (await handleManagerText(manager, text, contactId)) return;
+      if (!manager.employee_id || !employee) {
+        await textManager('manager_help', {}, manager, { contactId });
+        return;
+      }
     }
 
     if (!employee) {

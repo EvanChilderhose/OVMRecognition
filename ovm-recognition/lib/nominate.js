@@ -37,7 +37,7 @@ async function textManager(key, vars, manager, options) {
 // The invite: their link and how to text NOMINATE, then the "save our number" card
 async function sendInvite(manager) {
   if (!manager || !manager.phone || manager.status === 'Inactive') return false;
-  const sent = await textManager('manager_invite', {}, manager, { force: true });
+  const sent = await textManager(manager.employee_id ? 'supervisor_invite' : 'manager_invite', {}, manager, { force: true });
   if (!sent) return false;
   if (contactCardUrl()) await sendTemplate('contact_card', {}, { phone: manager.phone, name: manager.name });
   await pool.query('UPDATE managers SET invited_at = now() WHERE id = $1', [manager.id]);
@@ -81,6 +81,7 @@ async function createNomination(manager, { employeeId, ruleId, note, custom, poi
   if (note.length > 600) throw new NominationError('Keep the reason under 600 characters.');
   const employee = (await pool.query(`SELECT * FROM employees WHERE id = $1 AND status = 'Active'`, [employeeId])).rows[0];
   if (!employee) throw new NominationError('Pick someone from the list.');
+  if (manager.employee_id && manager.employee_id === employee.id) throw new NominationError('You can\'t nominate yourself.');
 
   let award, notes;
   if (custom) {

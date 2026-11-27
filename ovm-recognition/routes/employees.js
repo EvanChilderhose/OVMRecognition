@@ -6,6 +6,7 @@ const { normalizePhone } = require('../lib/phone');
 const { newProfileToken, ensureProfileToken } = require('../lib/profile');
 const { sendTemplate } = require('../lib/messages');
 const { contactCardUrl } = require('../lib/contactCard');
+const { setEmployeeSupervisor, supervisorEmployeeIds } = require('../lib/supervisors');
 
 // Validates and cleans up the fields shared by add + edit
 function readEmployee(body) {
@@ -20,9 +21,10 @@ function readEmployee(body) {
 }
 
 // Managers aren't in the rewards program, so an employee can't use a manager's number
-async function notAManager(phone) {
+// (their own supervisor row, linked by employee_id, doesn't count)
+async function notAManager(phone, employeeId) {
   if (!phone) return;
-  const m = (await pool.query('SELECT name FROM managers WHERE phone = $1', [phone])).rows[0];
+  const m = (await pool.query('SELECT name FROM managers WHERE phone = $1 AND (employee_id IS NULL OR employee_id <> $2)', [phone, employeeId || 0])).rows[0];
   if (m) throw httpError(409, `That number belongs to ${m.name} on the Managers tab. Managers aren't in the rewards program.`);
 }
 
@@ -33,8 +35,8 @@ function duplicatePhone(err) {
 
 // List all employees
 router.get('/', wrap(async (req, res) => {
-  const result = await pool.query('SELECT * FROM employees ORDER BY name ASC');
-  res.json(result.rows);
+  const [result, supervisors] = await Promise.all([pool.query('SELECT * FROM employees ORDER BY name ASC'), supervisorEmployeeIds()]);
+  res.json(result.rows.map(e => ({ ...e, supervisor: supervisors.has(e.id) })));
 }));
 
 // Texts the welcome message and records when it was sent. Returns true if sent.
@@ -64,6 +66,7 @@ router.post('/', wrap(async (req, res) => {
   } catch (err) {
     throw duplicatePhone(err);
   }
+  if (req.body.supervisor === true) await setEmployeeSupervisor(employee, true);
   const welcomed = await sendWelcome(employee, false);
   res.status(201).json({ ...employee, welcomed });
 }));
@@ -94,7 +97,7 @@ router.post('/welcome-all', wrap(async (req, res) => {
 // Update an employee
 router.put('/:id', wrap(async (req, res) => {
   const values = readEmployee(req.body);
-  await notAManager(values[1]);
+  await notAManager(values[1], Number(req.params.id));
   let result;
   try {
     result = await pool.query(
@@ -106,7 +109,12 @@ router.put('/:id', wrap(async (req, res) => {
     throw duplicatePhone(err);
   }
   if (result.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
-  res.json(result.rows[0]);
+  const employee = result.rows[0];
+  // Supervisor on/off (or keep their nominating row's name, phone and status in step)
+  const wasSupervisor = (await supervisorEmployeeIds()).has(employee.id);
+  const supervisor = req.body.supervisor === undefined ? wasSupervisor : req.body.supervisor === true;
+  if (supervisor || wasSupervisor) await setEmployeeSupervisor(employee, supervisor);
+  res.json({ ...employee, supervisor });
 }));
 
 // Give an employee a new profile link — the old one stops working immediately
@@ -117,7 +125,12 @@ router.post('/:id/reset-profile-link', wrap(async (req, res) => {
     [newProfileToken(), req.params.id]
   );
   if (result.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
-  res.json(result.rows[0]);
+  const employee = result.rows[0];
+  // Supervisor on/off (or keep their nominating row's name, phone and status in step)
+  const wasSupervisor = (await supervisorEmployeeIds()).has(employee.id);
+  const supervisor = req.body.supervisor === undefined ? wasSupervisor : req.body.supervisor === true;
+  if (supervisor || wasSupervisor) await setEmployeeSupervisor(employee, supervisor);
+  res.json({ ...employee, supervisor });
 }));
 
 // "View as employee" (dashboard only, so it's behind the passcode): the address of
