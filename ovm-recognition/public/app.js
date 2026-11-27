@@ -954,8 +954,10 @@ async function tmTest() {
 }
 
 // ---------- Pending approvals ----------
+let pendingCache = [];
 async function loadPending() {
   const rows = await api('/api/transactions?status=pending');
+  pendingCache = rows;
   const tbody = document.querySelector('#pending-table tbody');
   setPendingCount(rows.length);
   tbody.innerHTML = rows.map(t => `
@@ -981,7 +983,16 @@ function setPendingCount(n) {
   el.classList.toggle('hidden', !n);
 }
 
+// A nomination from a manager or supervisor with a reason they typed (not a custom amount,
+// whose reason is already the award's name). Approving opens a window to edit what the employee sees.
+function sharableReason(t) {
+  return t && t.type === 'award' && t.manager_id && t.notes && !/^Custom amount/.test(t.notes) ? String(t.notes).split(' | ')[0] : null;
+}
+
+let approveTemplate = null;
 async function approveTx(id) {
+  const t = pendingCache.find(x => x.id === id);
+  if (sharableReason(t)) return openApproveNomination(t);
   const approved_by = prompt('Your name (for the record):');
   if (approved_by === null) return; // Cancel
   try {
@@ -991,6 +1002,50 @@ async function approveTx(id) {
   }
   loadPending();
 }
+async function openApproveNomination(t) {
+  try {
+    if (!approveTemplate) {
+      const texts = await api('/api/texts');
+      const a = texts.find(x => x.key === 'award_approved'), f = texts.find(x => x.key === 'profile_footer');
+      approveTemplate = { body: a.body, enabled: a.enabled, footer: f && f.enabled ? f.body : '' };
+    }
+  } catch (e) { if (e.message !== 'unauthorized') alert(e.message); return; }
+  const emp = employeesCache.find(e => e.id === t.employee_id) || {};
+  let savedName = '';
+  try { savedName = localStorage.getItem('ovm_approver') || ''; } catch (e) {}
+  showModal('Approve ' + t.reason + ' for ' + t.employee_name, `
+    <p class="hint-text">Nominated by <strong>${esc(t.nominated_by)}</strong>. Their reason: "${esc(sharableReason(t))}"</p>
+    ${field('ap-reason', 'Reason the employee will see <span class="hint">(edit it, or clear it to leave it out)</span>', `<textarea id="ap-reason" rows="2" maxlength="300" oninput="apUpdate()">${esc(sharableReason(t))}</textarea>`)}
+    ${field('ap-name', 'Your name <span class="hint">(for the record)</span>', `<input id="ap-name" value="${esc(savedName)}">`)}
+    <div>
+      <p class="hint-text">Text ${esc((t.employee_name || '').split(' ')[0])} will get</p>
+      <div class="text-preview" id="ap-preview"></div>
+    </div>
+  `, async () => {
+    const approved_by = val('ap-name').trim();
+    try { localStorage.setItem('ovm_approver', approved_by); } catch (e) {}
+    const btn = document.getElementById('modal-save');
+    btn.disabled = true;
+    try {
+      await api(`/api/transactions/${t.id}/approve`, { method: 'POST', body: JSON.stringify({ approved_by, share_reason: val('ap-reason') }) });
+      closeModal();
+    } finally {
+      btn.disabled = false;
+    }
+    loadPending();
+  });
+  document.getElementById('modal-save').textContent = 'Approve & send text';
+  window.apUpdate = () => {
+    const shared = val('ap-reason').trim().replace(/\s+/g, ' ').replace(/[.!\s]+$/, '');
+    const vars = { first_name: (t.employee_name || '').split(' ')[0], points: t.points, reason: shared ? t.reason + ': ' + shared : t.reason,
+      balance: Number(emp.current_points || 0) + Number(t.points) };
+    let text = approveTemplate.body.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+    if (approveTemplate.footer) text += '\n\n' + approveTemplate.footer.replace('{profile_link}', location.origin + '/me/…');
+    document.getElementById('ap-preview').textContent = approveTemplate.enabled ? text : '(The "Award approved" text is switched off in the Texts tab, so no text will be sent.)';
+  };
+  apUpdate();
+}
+
 async function denyTx(id) {
   const approved_by = prompt('Your name (for the record):');
   if (approved_by === null) return; // Cancel

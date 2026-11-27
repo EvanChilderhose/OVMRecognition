@@ -53,6 +53,8 @@ async function lockPending(client, id) {
 // Redemptions: the points were already deducted when requested; this just marks it fulfilled.
 router.post('/:id/approve', wrap(async (req, res) => {
   const { approved_by } = req.body;
+  // Optional: the nominator's reason, as edited by the approver, added to the employee's text
+  const shareReason = String((req.body && req.body.share_reason) || '').trim().replace(/\s+/g, ' ').slice(0, 300);
 
   const transaction = await withTransaction(async (client) => {
     const tx = await lockPending(client, req.params.id);
@@ -88,7 +90,8 @@ router.post('/:id/approve', wrap(async (req, res) => {
   // Text the employee (sendTemplate never throws, so a GHL problem can't undo the approval)
   if (employee) {
     if (transaction.type === 'award') {
-      await sendTemplate('award_approved', { points: transaction.points, reason: transaction.reason }, { employee });
+      const reason = shareReason ? `${transaction.reason}: ${shareReason.replace(/[.!\s]+$/, '')}` : transaction.reason;
+      await sendTemplate('award_approved', { points: transaction.points, reason }, { employee });
     } else {
       await sendTemplate('redemption_approved', { reward: transaction.reason }, { employee });
     }
