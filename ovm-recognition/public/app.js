@@ -838,7 +838,7 @@ async function resetManagerLink(id) {
 
 async function sendManagerInvite(id) {
   const m = managersCache.find(x => x.id === id);
-  if (!confirm(`Text the manager invite to ${m.name} now?`)) return;
+  if (!confirm(`Text the ${m.employee_id ? 'supervisor' : 'manager'} invite to ${m.name} now?`)) return;
   try {
     await api(`/api/managers/${id}/invite`, { method: 'POST' });
     document.getElementById('invite-status').textContent = 'Sent just now';
